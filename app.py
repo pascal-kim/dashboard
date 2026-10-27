@@ -65,7 +65,7 @@ st.sidebar.header("파일 업로드")
 budget_file = st.sidebar.file_uploader("① 예산내역 엑셀 파일", type=["xlsx", "xls"], key="budget")
 execution_file = st.sidebar.file_uploader("② 집행내역 엑셀 파일", type=["xlsx", "xls"], key="execution")
 if not budget_file or not execution_file:
-    st.info("예산 파일과 집행 파일을 모두 업로드해 주세요. 예산 파일은 '예산내역-whatif…' 시트를, 집행 파일은 전표의 '전기일'과 '금액(현지 통화)'를 사용합니다.")
+    st.info("예산 파일과 집행 파일을 모두 업로드해 주세요. 예산 파일은 '예산내역' 시트를, 집행 파일은 전표의 '전기일'과 '금액(현지 통화)'를 사용합니다.")
     st.markdown("""
 **대시보드 집계 기준**
 - 예산: 부서명·부서코드·과제번호·자금코드·한국연구재단비목·교내계정과목별 예산 합계
