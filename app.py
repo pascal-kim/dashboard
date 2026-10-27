@@ -221,7 +221,7 @@ st.caption(f"예산 시트: {bsheet} · 집행 시트: {exsheet} · 집행일자
 st.subheader("월별 집행액")
 monthly=ef.groupby("월",as_index=False)["집행액"].sum().sort_values("월")
 if not monthly.empty:
-    fig=px.bar(monthly,x="월",y="집행액",text_auto=".2s",title="월별 순집행액")
+    fig=px.bar(     monthly,     x="월",     y="집행액",     text="집행액",     title="월별 순집행액" ) fig.update_traces(     texttemplate="%{y:,.0f}",     hovertemplate="월: %{x}<br>집행액: %{y:,.0f}원<extra></extra>" )
     fig.update_layout(xaxis_title="월",yaxis_title="집행액(원)")
     st.plotly_chart(fig,use_container_width=True)
     monthly["누적집행액"]=monthly["집행액"].cumsum()
