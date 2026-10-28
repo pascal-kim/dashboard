@@ -1,14 +1,29 @@
+
 import streamlit as st
 import pandas as pd
 import plotly.express as px
 import re
 
-st.set_page_config(page_title="사업예산 대비 집행 대시보드", page_icon="📊", layout="wide")
+st.set_page_config(
+    page_title="사업예산 대비 집행 대시보드",
+    page_icon="📊",
+    layout="wide"
+)
+
 st.title("사업예산 대비 집행 대시보드")
-st.caption("예산 파일과 집행 파일을 함께 올리면 월별 집행액·예산 대비 집행률을 확인할 수 있습니다.")
+st.caption(
+    "예산 파일과 집행 파일을 함께 올리면 "
+    "월별 집행액·예산 대비 집행률을 확인할 수 있습니다."
+)
+
+
+# ─────────────────────────────────────────────
+# 공통 함수
+# ─────────────────────────────────────────────
 
 def norm(x):
     return re.sub(r"\s+", "", str(x).replace("\n", "")).strip().lower()
+
 
 def find_col(columns, candidates):
     cmap = {norm(c): c for c in columns}
@@ -17,246 +32,1021 @@ def find_col(columns, candidates):
             return cmap[norm(c)]
     return None
 
+
 def read_budget(upload):
     xls = pd.ExcelFile(upload)
-    preferred = [s for s in xls.sheet_names if "예산내역-whatif" in s]
-    preferred += [s for s in xls.sheet_names if "예산내역" in s and s not in preferred]
-    preferred += [s for s in xls.sheet_names if s not in preferred]
+
+    preferred = [
+        s for s in xls.sheet_names
+        if "예산내역-whatif" in s
+    ]
+    preferred += [
+        s for s in xls.sheet_names
+        if "예산내역" in s and s not in preferred
+    ]
+    preferred += [
+        s for s in xls.sheet_names
+        if s not in preferred
+    ]
+
     selected = None
+
     for sh in preferred:
         try:
-            test = pd.read_excel(xls, sheet_name=sh, header=1, nrows=3)
+            test = pd.read_excel(
+                xls,
+                sheet_name=sh,
+                header=1,
+                nrows=3
+            )
             cn = [norm(c) for c in test.columns]
-            if any("부서코드" in c for c in cn) and any("자금코드" in c for c in cn) and any("최초예산" in c for c in cn):
+
+            if (
+                any("부서코드" in c for c in cn)
+                and any("자금코드" in c for c in cn)
+                and any("최초예산" in c for c in cn)
+            ):
                 selected = sh
                 break
         except Exception:
             pass
+
     if selected is None:
         selected = xls.sheet_names[0]
+
     return xls, selected
+
 
 def area_class(task, area=""):
     t = str(task).strip().upper().replace("[", "").replace("]", "")
+
     if "사업관리" in t:
         return "사업관리"
+
     m = re.match(r"^([A-F])[-－]", t)
+
     if m:
         return "교육영역" if m.group(1) in "ABCDE" else "기타영역"
+
     a = str(area).strip()
-    if a in ("교육", "교육영역"): return "교육영역"
-    if a in ("기타", "기타영역"): return "기타영역"
-    if a == "사업관리": return "사업관리"
+
+    if a in ("교육", "교육영역"):
+        return "교육영역"
+
+    if a in ("기타", "기타영역"):
+        return "기타영역"
+
+    if a == "사업관리":
+        return "사업관리"
+
     return "기타/미분류"
+
 
 def clean_task(x):
     s = str(x).strip().upper()
     s = s.replace("[", "").replace("]", "").replace(" ", "")
-    if re.fullmatch(r"\d+\.0", s): s = s[:-2]
-    # SAP expenditure export uses "사업운영" for the budget's "사업관리" task.
-    if s == "사업운영": s = "사업관리"
+
+    if re.fullmatch(r"\d+\.0", s):
+        s = s[:-2]
+
+    # SAP 집행 자료의 사업운영은 예산의 사업관리와 연결
+    if s == "사업운영":
+        s = "사업관리"
+
     return s
 
+
 def money(x):
-    try: return f"{float(x):,.0f}원"
-    except: return "—"
+    try:
+        return f"{float(x):,.0f}원"
+    except (ValueError, TypeError):
+        return "—"
+
+
+def format_money_columns(df, columns):
+    """표에 표시할 금액을 천 단위 콤마 문자열로 변환."""
+    out = df.copy()
+
+    for col in columns:
+        if col in out.columns:
+            out[col] = out[col].apply(
+                lambda x: f"{x:,.0f}"
+                if pd.notna(x) and isinstance(x, (int, float))
+                else (
+                    f"{float(x):,.0f}"
+                    if pd.notna(x) and str(x).strip() != ""
+                    and is_numeric(x)
+                    else x
+                )
+            )
+
+    return out
+
+
+def is_numeric(x):
+    try:
+        float(x)
+        return True
+    except (ValueError, TypeError):
+        return False
+
+
+# ─────────────────────────────────────────────
+# 파일 업로드
+# ─────────────────────────────────────────────
 
 st.sidebar.header("파일 업로드")
-budget_file = st.sidebar.file_uploader("① 예산내역 엑셀 파일", type=["xlsx", "xls"], key="budget")
-execution_file = st.sidebar.file_uploader("② 집행내역 엑셀 파일", type=["xlsx", "xls"], key="execution")
+
+budget_file = st.sidebar.file_uploader(
+    "① 예산내역 엑셀 파일",
+    type=["xlsx", "xls"],
+    key="budget"
+)
+
+execution_file = st.sidebar.file_uploader(
+    "② 집행내역 엑셀 파일",
+    type=["xlsx", "xls"],
+    key="execution"
+)
+
 if not budget_file or not execution_file:
-    st.info("예산 파일과 집행 파일을 모두 업로드해 주세요. 예산 파일은 '예산내역' 시트를, 집행 파일은 전표의 '전기일'과 '금액(현지 통화)'를 사용합니다.")
+    st.info(
+        "예산 파일과 집행 파일을 모두 업로드해 주세요. "
+        "예산 파일은 '예산내역' 시트를, 집행 파일은 전표의 "
+        "'전기일'과 '금액(현지 통화)'를 사용합니다."
+    )
+
     st.markdown("""
-**대시보드 집계 기준**
-- 예산: 부서명·부서코드·과제번호·자금코드·한국연구재단비목·교내계정과목별 예산 합계
-- 집행: 전기일 기준 월별 집행액(차변/대변 지시자에 따라 원본 금액의 부호를 유지)
-- 영역: `[A-1]`~`[E-3]` 교육영역, `[F-1]`~`[F-3]` 기타영역, `사업관리` 사업관리
-""")
+    **대시보드 집계 기준**
+
+    - 예산: 부서명·부서코드·과제번호·자금코드·한국연구재단비목·교내계정과목별 예산 합계
+    - 집행: 전기일 기준 월별 집행액(원본 금액의 부호 유지)
+    - 영역: `[A-1]`~`[E-3]` 교육영역, `[F-1]`~`[F-3]` 기타영역, `사업관리` 사업관리
+    """)
+
     st.stop()
+
+
+# ─────────────────────────────────────────────
+# 예산 파일 읽기
+# ─────────────────────────────────────────────
 
 try:
     bx, default_sheet = read_budget(budget_file)
-    bsheet = st.sidebar.selectbox("예산 시트", bx.sheet_names, index=bx.sheet_names.index(default_sheet))
-    bdf = pd.read_excel(bx, sheet_name=bsheet, header=1)
+
+    bsheet = st.sidebar.selectbox(
+        "예산 시트",
+        bx.sheet_names,
+        index=bx.sheet_names.index(default_sheet)
+    )
+
+    bdf = pd.read_excel(
+        bx,
+        sheet_name=bsheet,
+        header=1
+    )
+
 except Exception as e:
     st.error(f"예산 파일 읽기 오류: {e}")
     st.stop()
 
-# Budget columns
+
+# 예산 열 찾기
 bc = {
     "dept": find_col(bdf.columns, ["부서(팀명)", "부서명", "부서"]),
     "dept_code": find_col(bdf.columns, ["부서코드"]),
     "task": find_col(bdf.columns, ["과제명", "과제번호"]),
-    "nrf": find_col(bdf.columns, ["한국연구재단비목(드롭박스)", "한국연구재단비목", "연구재단비목"]),
-    "account": find_col(bdf.columns, ["교내계정과목(드롭박스)", "교내계정과목"]),
+    "nrf": find_col(
+        bdf.columns,
+        ["한국연구재단비목(드롭박스)", "한국연구재단비목", "연구재단비목"]
+    ),
+    "account": find_col(
+        bdf.columns,
+        ["교내계정과목(드롭박스)", "교내계정과목"]
+    ),
     "account_code": find_col(bdf.columns, ["계정코드"]),
     "fund": find_col(bdf.columns, ["자금코드"]),
-    "budget": find_col(bdf.columns, ["최초예산", "최종예산", "변경예산", "예산액", "예산"]),
-    "area": find_col(bdf.columns, ["영역1", "사업영역", "영역"]),
+    "budget": find_col(
+        bdf.columns,
+        ["최초예산", "최종예산", "변경예산", "예산액", "예산"]
+    ),
+    "area": find_col(bdf.columns, ["영역1", "사업영역", "영역"])
 }
-missing_b = [k for k in ["dept","dept_code","task","nrf","account","account_code","fund","budget"] if not bc[k]]
+
+missing_b = [
+    k for k in [
+        "dept", "dept_code", "task", "nrf",
+        "account", "account_code", "fund", "budget"
+    ]
+    if not bc[k]
+]
+
 if missing_b:
-    st.error(f"예산 시트에서 필요한 열을 찾지 못했습니다: {missing_b}. 상세 예산내역 시트와 제목 행을 확인해 주세요.")
+    st.error(
+        f"예산 시트에서 필요한 열을 찾지 못했습니다: {missing_b}. "
+        "상세 예산내역 시트와 제목 행을 확인해 주세요."
+    )
     st.write(list(bdf.columns))
     st.stop()
 
-# Execution header row is usually row 2 (Excel row number)
+
+# ─────────────────────────────────────────────
+# 집행 파일 읽기
+# ─────────────────────────────────────────────
+
 try:
     exls = pd.ExcelFile(execution_file)
-    exsheet = st.sidebar.selectbox("집행 시트", exls.sheet_names)
-    raw = pd.read_excel(exls, sheet_name=exsheet, header=None)
+
+    exsheet = st.sidebar.selectbox(
+        "집행 시트",
+        exls.sheet_names
+    )
+
+    raw = pd.read_excel(
+        exls,
+        sheet_name=exsheet,
+        header=None
+    )
+
     header_idx = 0
+
     for i in range(min(8, len(raw))):
         vals = [norm(v) for v in raw.iloc[i].tolist()]
-        if any("전기일" == v for v in vals) and any("금액(현지통화)" == v for v in vals):
+
+        if (
+            any(v == "전기일" for v in vals)
+            and any(v in ("금액(현지통화)", "금액(현지 통화)") for v in vals)
+        ):
             header_idx = i
             break
-    edf = pd.read_excel(exls, sheet_name=exsheet, header=header_idx)
+
+    edf = pd.read_excel(
+        exls,
+        sheet_name=exsheet,
+        header=header_idx
+    )
+
 except Exception as e:
     st.error(f"집행 파일 읽기 오류: {e}")
     st.stop()
 
+
+# 집행 열 찾기
 ec = {
     "dept": find_col(edf.columns, ["지출 부서", "지출부서", "부서명"]),
-    "nrf": find_col(edf.columns, ["연구재단 비목", "연구재단비목", "한국연구재단비목"]),
+    "nrf": find_col(
+        edf.columns,
+        ["연구재단 비목", "연구재단비목", "한국연구재단비목"]
+    ),
     "task": find_col(edf.columns, ["과제번호", "과제 번호"]),
     "fund": find_col(edf.columns, ["자금", "자금코드"]),
-    "account_code": find_col(edf.columns, ["계정과목", "계정코드", "G/L 계정"]),
+    "account_code": find_col(
+        edf.columns,
+        ["계정과목", "계정코드", "G/L 계정"]
+    ),
     "date": find_col(edf.columns, ["전기일", "증빙일", "입력일"]),
-    "amount": find_col(edf.columns, ["금액(현지 통화)", "금액(현지통화)", "금액"]),
-    "drcr": find_col(edf.columns, ["차변/대변 지시자", "차변대변지시자"]),
+    "amount": find_col(
+        edf.columns,
+        ["금액(현지 통화)", "금액(현지통화)", "금액"]
+    ),
+    "drcr": find_col(edf.columns, ["차변/대변 지시자", "차변대변지시자"])
 }
-missing_e = [k for k in ["dept","nrf","task","fund","account_code","date","amount"] if not ec[k]]
+
+missing_e = [
+    k for k in [
+        "dept", "nrf", "task", "fund",
+        "account_code", "date", "amount"
+    ]
+    if not ec[k]
+]
+
 if missing_e:
-    st.error(f"집행 시트에서 필요한 열을 찾지 못했습니다: {missing_e}. 전표 상세 시트를 선택해 주세요.")
+    st.error(
+        f"집행 시트에서 필요한 열을 찾지 못했습니다: {missing_e}. "
+        "전표 상세 시트를 선택해 주세요."
+    )
     st.write(list(edf.columns))
     st.stop()
 
-# Prepare budget rows
+
+# ─────────────────────────────────────────────
+# 예산 데이터 정리
+# ─────────────────────────────────────────────
+
 budget = pd.DataFrame()
+
 for k, col in bc.items():
     if col is not None:
         budget[k] = bdf[col]
-for c in ["dept","dept_code","task","nrf","account","fund"]:
+
+for c in ["dept", "dept_code", "task", "nrf", "account", "fund"]:
     budget[c] = budget[c].fillna("").astype(str).str.strip()
-budget["budget_amt"] = pd.to_numeric(budget["budget"], errors="coerce")
+
+budget["budget_amt"] = pd.to_numeric(
+    budget["budget"],
+    errors="coerce"
+)
+
 budget["task_key"] = budget["task"].map(clean_task)
-budget["account_key"] = budget["account_code"].map(lambda x: clean_task(x) if pd.notna(x) else "")
+
+budget["account_key"] = budget["account_code"].map(
+    lambda x: clean_task(x) if pd.notna(x) else ""
+)
+
 budget["fund_key"] = budget["fund"].map(clean_task)
 budget["dept_key"] = budget["dept"].map(norm)
 budget["nrf_key"] = budget["nrf"].map(norm)
-budget = budget[budget["budget_amt"].notna() & (budget["dept"]!="") & (budget["task_key"]!="") & (budget["fund_key"]!="")].copy()
-budget["영역구분"] = budget.apply(lambda r: area_class(r["task"], r.get("area","")), axis=1)
-budget["부서명(부서코드)"] = budget["dept"] + " (" + budget["dept_code"].astype(str).str.replace(r"\.0$", "", regex=True) + ")"
 
-# Prepare expenditure rows
+budget = budget[
+    budget["budget_amt"].notna()
+    & (budget["dept"] != "")
+    & (budget["task_key"] != "")
+    & (budget["fund_key"] != "")
+].copy()
+
+budget["영역구분"] = budget.apply(
+    lambda r: area_class(r["task"], r.get("area", "")),
+    axis=1
+)
+
+budget["부서명(부서코드)"] = (
+    budget["dept"]
+    + " ("
+    + budget["dept_code"].astype(str).str.replace(
+        r"\.0$", "", regex=True
+    )
+    + ")"
+)
+
+
+# ─────────────────────────────────────────────
+# 집행 데이터 정리
+# ─────────────────────────────────────────────
+
 exp = pd.DataFrame()
-for k,col in ec.items():
-    if col is not None: exp[k] = edf[col]
-for c in ["dept","nrf","task","fund","account_code"]:
+
+for k, col in ec.items():
+    if col is not None:
+        exp[k] = edf[col]
+
+for c in ["dept", "nrf", "task", "fund", "account_code"]:
     exp[c] = exp[c].fillna("").astype(str).str.strip()
-exp["date"] = pd.to_datetime(exp["date"], errors="coerce")
-exp["amount"] = pd.to_numeric(exp["amount"], errors="coerce")
-exp = exp[exp["date"].notna() & exp["amount"].notna()].copy()
+
+exp["date"] = pd.to_datetime(
+    exp["date"],
+    errors="coerce"
+)
+
+exp["amount"] = pd.to_numeric(
+    exp["amount"],
+    errors="coerce"
+)
+
+exp = exp[
+    exp["date"].notna()
+    & exp["amount"].notna()
+].copy()
+
 exp["task_key"] = exp["task"].map(clean_task)
 exp["account_key"] = exp["account_code"].map(clean_task)
 exp["fund_key"] = exp["fund"].map(clean_task)
 exp["dept_key"] = exp["dept"].map(norm)
 exp["nrf_key"] = exp["nrf"].map(norm)
+
 exp["영역구분"] = exp["task"].map(area_class)
 exp["월"] = exp["date"].dt.to_period("M").astype(str)
-# Signed amount is preserved so reversals/refunds reduce net execution.
+
+# 원본 금액의 부호 유지
 exp["집행액"] = exp["amount"]
 
-# Aggregate exact budget key dimensions; account code is used to match SAP G/L account.
-key = ["dept_key","task_key","fund_key","nrf_key","account_key"]
-budget_group = budget.groupby(key, dropna=False, as_index=False).agg(
-    예산액=("budget_amt","sum"),
-    부서명=("dept","first"), 부서코드=("dept_code","first"),
-    과제번호=("task","first"), 자금코드=("fund","first"),
-    한국연구재단비목=("nrf","first"), 교내계정과목=("account","first"),
-    영역구분=("영역구분","first")
+
+# ─────────────────────────────────────────────
+# 예산과 집행 연결
+# ─────────────────────────────────────────────
+
+key = [
+    "dept_key",
+    "task_key",
+    "fund_key",
+    "nrf_key",
+    "account_key"
+]
+
+budget_group = budget.groupby(
+    key,
+    dropna=False,
+    as_index=False
+).agg(
+    예산액=("budget_amt", "sum"),
+    부서명=("dept", "first"),
+    부서코드=("dept_code", "first"),
+    과제번호=("task", "first"),
+    자금코드=("fund", "first"),
+    한국연구재단비목=("nrf", "first"),
+    교내계정과목=("account", "first"),
+    영역구분=("영역구분", "first")
 )
-exp_group = exp.groupby(key, dropna=False, as_index=False).agg(누적집행액=("집행액","sum"))
-joined = budget_group.merge(exp_group, on=key, how="left")
+
+exp_group = exp.groupby(
+    key,
+    dropna=False,
+    as_index=False
+).agg(
+    누적집행액=("집행액", "sum")
+)
+
+joined = budget_group.merge(
+    exp_group,
+    on=key,
+    how="left"
+)
+
 joined["누적집행액"] = joined["누적집행액"].fillna(0)
 joined["잔액"] = joined["예산액"] - joined["누적집행액"]
-joined["집행률(%)"] = joined.apply(lambda r: (r["누적집행액"]/r["예산액"]*100) if r["예산액"] else 0, axis=1)
 
-# Apply filters to both sides using shared dimensions
+joined["집행률(%)"] = joined.apply(
+    lambda r: (
+        r["누적집행액"] / r["예산액"] * 100
+        if r["예산액"] else 0
+    ),
+    axis=1
+)
+
+
+# ─────────────────────────────────────────────
+# 조회 조건
+# ─────────────────────────────────────────────
+
 st.sidebar.header("조회 조건")
-areas = ["전체"] + sorted(set(budget_group["영역구분"].dropna().tolist()) | set(exp["영역구분"].dropna().tolist()))
+
+areas = ["전체"] + sorted(
+    set(budget_group["영역구분"].dropna().tolist())
+    | set(exp["영역구분"].dropna().tolist())
+)
+
 sel_area = st.sidebar.selectbox("사업 영역", areas)
-sel_dept = st.sidebar.multiselect("부서", sorted(set(budget["dept"].dropna()) | set(exp["dept"].dropna())))
-sel_task = st.sidebar.multiselect("과제번호", sorted(set(budget["task_key"].dropna()) | set(exp["task_key"].dropna())))
-sel_fund = st.sidebar.multiselect("자금코드", sorted(set(budget["fund_key"].dropna()) | set(exp["fund_key"].dropna())))
-sel_nrf = st.sidebar.multiselect("한국연구재단비목", sorted(set(budget["nrf"].dropna()) | set(exp["nrf"].dropna())))
+
+sel_dept = st.sidebar.multiselect(
+    "부서",
+    sorted(set(budget["dept"].dropna()) | set(exp["dept"].dropna()))
+)
+
+sel_task = st.sidebar.multiselect(
+    "과제번호",
+    sorted(set(budget["task_key"].dropna()) | set(exp["task_key"].dropna()))
+)
+
+sel_fund = st.sidebar.multiselect(
+    "자금코드",
+    sorted(set(budget["fund_key"].dropna()) | set(exp["fund_key"].dropna()))
+)
+
+sel_nrf = st.sidebar.multiselect(
+    "한국연구재단비목",
+    sorted(set(budget["nrf"].dropna()) | set(exp["nrf"].dropna()))
+)
+
+
 def filter_common(frame, task_col="task_key"):
-    out=frame.copy()
-    if sel_area!="전체": out=out[out["영역구분"]==sel_area]
-    if sel_dept: out=out[out["dept"].isin(sel_dept)] if "dept" in out.columns else out[out["부서명"].isin(sel_dept)]
-    if sel_task: out=out[out[task_col].isin(sel_task)]
-    if sel_fund: out=out[out["fund_key"].isin(sel_fund)]
-    if sel_nrf: out=out[out["nrf"].isin(sel_nrf)] if "nrf" in out.columns else out[out["한국연구재단비목"].isin(sel_nrf)]
+    out = frame.copy()
+
+    if sel_area != "전체":
+        out = out[out["영역구분"] == sel_area]
+
+    if sel_dept:
+        if "dept" in out.columns:
+            out = out[out["dept"].isin(sel_dept)]
+        else:
+            out = out[out["부서명"].isin(sel_dept)]
+
+    if sel_task:
+        out = out[out[task_col].isin(sel_task)]
+
+    if sel_fund:
+        out = out[out["fund_key"].isin(sel_fund)]
+
+    if sel_nrf:
+        if "nrf" in out.columns:
+            out = out[out["nrf"].isin(sel_nrf)]
+        else:
+            out = out[out["한국연구재단비목"].isin(sel_nrf)]
+
     return out
+
+
 bf = filter_common(budget)
 ef = filter_common(exp)
-# Rebuild matching summary for filtered data
-bagg = bf.groupby(key, dropna=False, as_index=False).agg(예산액=("budget_amt","sum"),부서명=("dept","first"),부서코드=("dept_code","first"),과제번호=("task","first"),자금코드=("fund","first"),한국연구재단비목=("nrf","first"),교내계정과목=("account","first"),영역구분=("영역구분","first"))
-eagg = ef.groupby(key, dropna=False, as_index=False).agg(누적집행액=("집행액","sum"))
-summary=bagg.merge(eagg,on=key,how="left")
-summary["누적집행액"]=summary["누적집행액"].fillna(0)
-summary["잔액"]=summary["예산액"]-summary["누적집행액"]
-summary["집행률(%)"]=summary.apply(lambda r: r["누적집행액"]/r["예산액"]*100 if r["예산액"] else 0,axis=1)
 
-total_b=bf["budget_amt"].sum()
-total_e=ef["집행액"].sum()
-k1,k2,k3,k4=st.columns(4)
-k1.metric("선택 예산액",money(total_b))
-k2.metric("누적 순집행액",money(total_e))
-k3.metric("예산 잔액(단순 계산)",money(total_b-total_e))
-k4.metric("집행률",f"{total_e/total_b*100:.1f}%" if total_b else "—")
-st.caption(f"예산 시트: {bsheet} · 집행 시트: {exsheet} · 집행일자: 전기일 · 금액은 원본 부호 유지(환입/취소는 음수)")
+
+# ─────────────────────────────────────────────
+# 필터 적용 후 예산·집행 재집계
+# ─────────────────────────────────────────────
+
+bagg = bf.groupby(
+    key,
+    dropna=False,
+    as_index=False
+).agg(
+    예산액=("budget_amt", "sum"),
+    부서명=("dept", "first"),
+    부서코드=("dept_code", "first"),
+    과제번호=("task", "first"),
+    자금코드=("fund", "first"),
+    한국연구재단비목=("nrf", "first"),
+    교내계정과목=("account", "first"),
+    영역구분=("영역구분", "first")
+)
+
+eagg = ef.groupby(
+    key,
+    dropna=False,
+    as_index=False
+).agg(
+    누적집행액=("집행액", "sum")
+)
+
+summary = bagg.merge(
+    eagg,
+    on=key,
+    how="left"
+)
+
+summary["누적집행액"] = summary["누적집행액"].fillna(0)
+summary["잔액"] = summary["예산액"] - summary["누적집행액"]
+
+summary["집행률(%)"] = summary.apply(
+    lambda r: (
+        r["누적집행액"] / r["예산액"] * 100
+        if r["예산액"] else 0
+    ),
+    axis=1
+)
+
+
+# ─────────────────────────────────────────────
+# KPI 카드
+# ─────────────────────────────────────────────
+
+total_b = bf["budget_amt"].sum()
+total_e = ef["집행액"].sum()
+
+k1, k2, k3, k4 = st.columns(4)
+
+k1.metric("선택 예산액", money(total_b))
+k2.metric("누적 순집행액", money(total_e))
+k3.metric("예산 잔액(단순 계산)", money(total_b - total_e))
+k4.metric(
+    "집행률",
+    f"{total_e / total_b * 100:.1f}%"
+    if total_b else "—"
+)
+
+st.caption(
+    f"예산 시트: {bsheet} · 집행 시트: {exsheet} · "
+    "집행일자: 전기일 · 금액은 원본 부호 유지(환입/취소는 음수)"
+)
+
+
+# ─────────────────────────────────────────────
+# 1. 월별 집행액 그래프
+# ─────────────────────────────────────────────
 
 st.subheader("월별 집행액")
-monthly=ef.groupby("월",as_index=False)["집행액"].sum().sort_values("월")
+
+monthly = (
+    ef.groupby("월", as_index=False)["집행액"]
+    .sum()
+    .sort_values("월")
+)
+
 if not monthly.empty:
-    fig=px.bar(monthly,x="월",y="집행액",text_auto=".2s",title="월별 순집행액")
-    fig.update_layout(xaxis_title="월",yaxis_title="집행액(원)")
-    st.plotly_chart(fig,use_container_width=True)
-    monthly["누적집행액"]=monthly["집행액"].cumsum()
-    st.dataframe(monthly.rename(columns={"월":"집행월"}),use_container_width=True,hide_index=True)
+    fig = px.bar(
+        monthly,
+        x="월",
+        y="집행액",
+        text="집행액",
+        title="월별 순집행액",
+        color_discrete_sequence=["#3498DB"]
+    )
+
+    fig.update_traces(
+        texttemplate="%{text:,.0f}원",
+        textposition="outside",
+        cliponaxis=False,
+        hovertemplate=(
+            "%{x}<br>"
+            "집행액: %{y:,.0f}원"
+            "<extra></extra>"
+        )
+    )
+
+    fig.update_yaxes(tickformat=",.0f")
+
+    fig.update_layout(
+        xaxis_title="월",
+        yaxis_title="집행액(원)",
+        showlegend=False
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+    monthly["누적집행액"] = monthly["집행액"].cumsum()
+
+    monthly_display = monthly.rename(
+        columns={"월": "집행월"}
+    )
+
+    monthly_display = format_money_columns(
+        monthly_display,
+        ["집행액", "누적집행액"]
+    )
+
+    st.dataframe(
+        monthly_display,
+        use_container_width=True,
+        hide_index=True
+    )
+
 else:
-    st.warning("선택 조건에 해당하는 유효한 전기일/금액이 없습니다.")
+    st.warning(
+        "선택 조건에 해당하는 유효한 전기일/금액이 없습니다."
+    )
+
+
+# ─────────────────────────────────────────────
+# 2. 비목별 예산 구성 원그래프
+# ─────────────────────────────────────────────
+
+st.subheader("비목별 예산 구성")
+
+nrf_source = bf.copy()
+
+nrf_source["비목별표시"] = (
+    nrf_source["nrf"]
+    .replace("", "비목 미분류")
+)
+
+nrf_summary = (
+    nrf_source.groupby(
+        "비목별표시",
+        as_index=False
+    )["budget_amt"]
+    .sum()
+    .rename(columns={"budget_amt": "예산액"})
+    .sort_values("예산액", ascending=False)
+)
+
+if not nrf_summary.empty:
+    fig = px.pie(
+        nrf_summary,
+        names="비목별표시",
+        values="예산액",
+        title="전체 예산 중 비목별 구성 비율",
+        color_discrete_sequence=px.colors.qualitative.Set3
+    )
+
+    fig.update_traces(
+        textposition="inside",
+        texttemplate="%{label}<br>%{percent}",
+        hovertemplate=(
+            "%{label}<br>"
+            "예산액: %{value:,.0f}원<br>"
+            "구성 비율: %{percent}"
+            "<extra></extra>"
+        )
+    )
+
+    fig.update_layout(
+        legend_title_text="한국연구재단비목"
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+    nrf_display = format_money_columns(
+        nrf_summary,
+        ["예산액"]
+    )
+
+    st.dataframe(
+        nrf_display,
+        use_container_width=True,
+        hide_index=True
+    )
+
+else:
+    st.info("표시할 비목별 예산이 없습니다.")
+
+
+# ─────────────────────────────────────────────
+# 3. 부서별 예산 대비 집행 그래프
+# ─────────────────────────────────────────────
+
+st.subheader("부서별 예산 대비 집행")
+
+dept_summary = (
+    summary.groupby(
+        "부서명",
+        as_index=False
+    )[["예산액", "누적집행액", "잔액"]]
+    .sum()
+    .sort_values("예산액", ascending=False)
+)
+
+if not dept_summary.empty:
+    # 그래프는 예산액 상위 15개 부서만 표시
+    dept_chart = dept_summary.head(15).copy()
+
+    dept_long = dept_chart.melt(
+        id_vars="부서명",
+        value_vars=["예산액", "누적집행액"],
+        var_name="구분",
+        value_name="금액"
+    )
+
+    fig = px.bar(
+        dept_long,
+        x="부서명",
+        y="금액",
+        color="구분",
+        barmode="group",
+        title="부서별 예산·누적집행 비교 (예산액 상위 15개)",
+        color_discrete_map={
+            "예산액": "#9B59B6",
+            "누적집행액": "#E67E22"
+        }
+    )
+
+    fig.update_traces(
+        hovertemplate=(
+            "%{x}<br>"
+            "%{fullData.name}: %{y:,.0f}원"
+            "<extra></extra>"
+        )
+    )
+
+    fig.update_yaxes(tickformat=",.0f")
+
+    fig.update_layout(
+        xaxis_title="부서",
+        yaxis_title="금액(원)",
+        xaxis_tickangle=-35,
+        legend_title_text="구분"
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+    dept_display = format_money_columns(
+        dept_summary,
+        ["예산액", "누적집행액", "잔액"]
+    )
+
+    st.dataframe(
+        dept_display,
+        use_container_width=True,
+        hide_index=True
+    )
+
+else:
+    st.info("표시할 부서별 예산 자료가 없습니다.")
+
+
+# ─────────────────────────────────────────────
+# 4. 영역별 예산 대비 집행 그래프
+# ─────────────────────────────────────────────
 
 st.subheader("영역별 예산 대비 집행")
-area_summary=summary.groupby("영역구분",as_index=False)[["예산액","누적집행액","잔액"]].sum()
-area_summary["집행률(%)"]=area_summary.apply(lambda r:r["누적집행액"]/r["예산액"]*100 if r["예산액"] else 0,axis=1)
-st.dataframe(area_summary,use_container_width=True,hide_index=True)
-fig=px.bar(area_summary,x="영역구분",y=["예산액","누적집행액"],barmode="group",title="영역별 예산·누적집행 비교")
-st.plotly_chart(fig,use_container_width=True)
+
+area_summary = (
+    summary.groupby(
+        "영역구분",
+        as_index=False
+    )[["예산액", "누적집행액", "잔액"]]
+    .sum()
+)
+
+area_summary["집행률(%)"] = area_summary.apply(
+    lambda r: (
+        r["누적집행액"] / r["예산액"] * 100
+        if r["예산액"] else 0
+    ),
+    axis=1
+)
+
+area_display = format_money_columns(
+    area_summary,
+    ["예산액", "누적집행액", "잔액"]
+)
+
+area_display["집행률(%)"] = area_display["집행률(%)"].map(
+    lambda x: f"{x:.1f}%"
+)
+
+st.dataframe(
+    area_display,
+    use_container_width=True,
+    hide_index=True
+)
+
+area_long = area_summary.melt(
+    id_vars="영역구분",
+    value_vars=["예산액", "누적집행액"],
+    var_name="구분",
+    value_name="금액"
+)
+
+fig = px.bar(
+    area_long,
+    x="영역구분",
+    y="금액",
+    color="구분",
+    barmode="group",
+    title="영역별 예산·누적집행 비교",
+    color_discrete_map={
+        "예산액": "#16A085",
+        "누적집행액": "#F1C40F"
+    }
+)
+
+fig.update_traces(
+    hovertemplate=(
+        "%{x}<br>"
+        "%{fullData.name}: %{y:,.0f}원"
+        "<extra></extra>"
+    )
+)
+
+fig.update_yaxes(tickformat=",.0f")
+
+fig.update_layout(
+    xaxis_title="사업 영역",
+    yaxis_title="금액(원)",
+    legend_title_text="구분"
+)
+
+st.plotly_chart(fig, use_container_width=True)
+
+
+# ─────────────────────────────────────────────
+# 5. 예산 세부 집계
+# ─────────────────────────────────────────────
 
 st.subheader("예산 세부 집계")
-show_cols=["영역구분","부서명","부서코드","과제번호","자금코드","한국연구재단비목","교내계정과목","예산액","누적집행액","잔액","집행률(%)"]
-st.dataframe(summary[show_cols].sort_values("예산액",ascending=False),use_container_width=True,hide_index=True,
-             column_config={"예산액":st.column_config.NumberColumn(format="%d"),"누적집행액":st.column_config.NumberColumn(format="%d"),"잔액":st.column_config.NumberColumn(format="%d"),"집행률(%)":st.column_config.NumberColumn(format="%.1f%%")})
+
+show_cols = [
+    "영역구분",
+    "부서명",
+    "부서코드",
+    "과제번호",
+    "자금코드",
+    "한국연구재단비목",
+    "교내계정과목",
+    "예산액",
+    "누적집행액",
+    "잔액",
+    "집행률(%)"
+]
+
+summary_display = (
+    summary[show_cols]
+    .sort_values("예산액", ascending=False)
+    .copy()
+)
+
+summary_display = format_money_columns(
+    summary_display,
+    ["예산액", "누적집행액", "잔액"]
+)
+
+summary_display["집행률(%)"] = summary_display["집행률(%)"].map(
+    lambda x: f"{x:.1f}%"
+)
+
+st.dataframe(
+    summary_display,
+    use_container_width=True,
+    hide_index=True
+)
+
+
+# ─────────────────────────────────────────────
+# 6. 집행내역 상세
+# ─────────────────────────────────────────────
 
 st.subheader("집행내역 상세")
-detail_cols=["date","dept","task","fund","nrf","account_code","amount","월"]
-st.dataframe(ef[detail_cols].rename(columns={"date":"전기일","dept":"지출 부서","task":"과제번호","fund":"자금","nrf":"연구재단 비목","account_code":"계정과목","amount":"원본 금액","월":"집행월"}).sort_values("전기일",ascending=False),use_container_width=True,hide_index=True)
 
-# Diagnostics to show if expenditure rows match budget keys
-matched_keys = exp_group.merge(budget_group[key],on=key,how="inner")
+detail_cols = [
+    "date",
+    "dept",
+    "task",
+    "fund",
+    "nrf",
+    "account_code",
+    "amount",
+    "월"
+]
+
+detail = (
+    ef[detail_cols]
+    .rename(
+        columns={
+            "date": "전기일",
+            "dept": "지출 부서",
+            "task": "과제번호",
+            "fund": "자금",
+            "nrf": "연구재단 비목",
+            "account_code": "계정과목",
+            "amount": "원본 금액",
+            "월": "집행월"
+        }
+    )
+    .sort_values("전기일", ascending=False)
+    .copy()
+)
+
+detail = format_money_columns(
+    detail,
+    ["원본 금액"]
+)
+
+detail["전기일"] = detail["전기일"].dt.strftime("%Y-%m-%d")
+
+st.dataframe(
+    detail,
+    use_container_width=True,
+    hide_index=True
+)
+
+
+# ─────────────────────────────────────────────
+# 7. 집행내역 검증
+# ─────────────────────────────────────────────
+
+matched_keys = exp_group.merge(
+    budget_group[key],
+    on=key,
+    how="inner"
+)
+
 st.subheader("집행내역 검증")
-c1,c2,c3=st.columns(3)
-c1.metric("집행 원본 행 수",f"{len(exp):,}")
-c2.metric("예산과 연결된 집행 조합",f"{len(matched_keys):,}")
-c3.metric("예산과 미연결 집행 조합",f"{len(exp_group)-len(matched_keys):,}")
-with st.expander("미연결 집행 내역 확인"):
-    unmatched=exp_group.merge(budget_group[key],on=key,how="left",indicator=True)
-    unmatched=unmatched[unmatched["_merge"]=="left_only"].drop(columns="_merge")
-    st.dataframe(unmatched,use_container_width=True,hide_index=True)
-    st.caption("미연결은 부서명·과제번호·자금코드·연구재단비목·계정코드가 예산 파일과 정확히 일치하지 않는 경우입니다. 예산과 연결되지 않은 집행액도 월별 집행 그래프에는 포함됩니다.")
 
-csv=summary[show_cols].to_csv(index=False).encode("utf-8-sig")
-st.download_button("예산 대비 집행 집계 CSV 다운로드",data=csv,file_name="예산대비집행_집계.csv",mime="text/csv")
+c1, c2, c3 = st.columns(3)
+
+c1.metric(
+    "집행 원본 행 수",
+    f"{len(exp):,}"
+)
+
+c2.metric(
+    "예산과 연결된 집행 조합",
+    f"{len(matched_keys):,}"
+)
+
+c3.metric(
+    "예산과 미연결 집행 조합",
+    f"{len(exp_group) - len(matched_keys):,}"
+)
+
+with st.expander("미연결 집행 내역 확인"):
+    unmatched = exp_group.merge(
+        budget_group[key],
+        on=key,
+        how="left",
+        indicator=True
+    )
+
+    unmatched = unmatched[
+        unmatched["_merge"] == "left_only"
+    ].drop(columns="_merge")
+
+    unmatched_display = format_money_columns(
+        unmatched,
+        ["누적집행액"]
+    )
+
+    st.dataframe(
+        unmatched_display,
+        use_container_width=True,
+        hide_index=True
+    )
+
+    st.caption(
+        "미연결은 부서명·과제번호·자금코드·연구재단비목·"
+        "계정코드가 예산 파일과 정확히 일치하지 않는 경우입니다. "
+        "예산과 연결되지 않은 집행액도 월별 집행 그래프에는 포함됩니다."
+    )
+
+
+# ─────────────────────────────────────────────
+# 8. 예산 대비 집행 집계 CSV 다운로드
+# ─────────────────────────────────────────────
+
+csv = summary[show_cols].to_csv(
+    index=False
+).encode("utf-8-sig")
+
+st.download_button(
+    "예산 대비 집행 집계 CSV 다운로드",
+    data=csv,
+    file_name="예산대비집행_집계.csv",
+    mime="text/csv"
+)
