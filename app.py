@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -8,6 +7,64 @@ st.set_page_config(
     page_title="사업예산 대비 집행 대시보드",
     page_icon="📊",
     layout="wide"
+)
+
+# ─────────────────────────────────────────────
+# 색상 테마
+# ─────────────────────────────────────────────
+
+COLOR_TITLE = "#111D37"
+COLOR_BUDGET = "#223D72"
+COLOR_BUDGET_SUB = "#345CAD"
+COLOR_EXECUTION = "#5F84CF"
+COLOR_EXECUTION_SUB = "#9AB1E0"
+COLOR_COMPARE = "#7186A8"
+COLOR_EXTRA = "#6FA6B8"
+COLOR_BACKGROUND = "#D0D9E8"
+
+BLUE_PALETTE = [
+    COLOR_BUDGET,
+    COLOR_BUDGET_SUB,
+    COLOR_EXECUTION,
+    COLOR_EXECUTION_SUB,
+    COLOR_COMPARE,
+    COLOR_EXTRA,
+    COLOR_BACKGROUND,
+]
+
+st.markdown(
+    f"""
+    <style>
+    h1, h2, h3 {{
+        color: {COLOR_TITLE};
+    }}
+
+    [data-testid="stMetric"] {{
+        background-color: {COLOR_BACKGROUND};
+        padding: 14px;
+        border-radius: 8px;
+    }}
+
+    [data-testid="stMetricLabel"] {{
+        color: {COLOR_TITLE};
+    }}
+
+    [data-testid="stMetricValue"] {{
+        color: {COLOR_TITLE};
+        font-weight: 700;
+    }}
+
+    [data-testid="stSidebar"] {{
+        border-right: 1px solid {COLOR_BACKGROUND};
+    }}
+
+    div[data-testid="stDataFrame"] {{
+        border: 1px solid {COLOR_BACKGROUND};
+        border-radius: 6px;
+    }}
+    </style>
+    """,
+    unsafe_allow_html=True
 )
 
 st.title("사업예산 대비 집행 대시보드")
@@ -22,14 +79,20 @@ st.caption(
 # ─────────────────────────────────────────────
 
 def norm(x):
-    return re.sub(r"\s+", "", str(x).replace("\n", "")).strip().lower()
+    return re.sub(
+        r"\s+",
+        "",
+        str(x).replace("\n", "")
+    ).strip().lower()
 
 
 def find_col(columns, candidates):
     cmap = {norm(c): c for c in columns}
+
     for c in candidates:
         if norm(c) in cmap:
             return cmap[norm(c)]
+
     return None
 
 
@@ -40,10 +103,12 @@ def read_budget(upload):
         s for s in xls.sheet_names
         if "예산내역-whatif" in s
     ]
+
     preferred += [
         s for s in xls.sheet_names
         if "예산내역" in s and s not in preferred
     ]
+
     preferred += [
         s for s in xls.sheet_names
         if s not in preferred
@@ -59,6 +124,7 @@ def read_budget(upload):
                 header=1,
                 nrows=3
             )
+
             cn = [norm(c) for c in test.columns]
 
             if (
@@ -68,6 +134,7 @@ def read_budget(upload):
             ):
                 selected = sh
                 break
+
         except Exception:
             pass
 
@@ -78,7 +145,13 @@ def read_budget(upload):
 
 
 def area_class(task, area=""):
-    t = str(task).strip().upper().replace("[", "").replace("]", "")
+    t = (
+        str(task)
+        .strip()
+        .upper()
+        .replace("[", "")
+        .replace("]", "")
+    )
 
     if "사업관리" in t:
         return "사업관리"
@@ -134,7 +207,8 @@ def format_money_columns(df, columns):
                 if pd.notna(x) and isinstance(x, (int, float))
                 else (
                     f"{float(x):,.0f}"
-                    if pd.notna(x) and str(x).strip() != ""
+                    if pd.notna(x)
+                    and str(x).strip() != ""
                     and is_numeric(x)
                     else x
                 )
@@ -149,6 +223,19 @@ def is_numeric(x):
         return True
     except (ValueError, TypeError):
         return False
+
+
+def right_align_columns(df, columns):
+    """지정한 금액 열을 오른쪽 정렬."""
+    cols = [col for col in columns if col in df.columns]
+
+    if not cols:
+        return df
+
+    return df.style.set_properties(
+        subset=cols,
+        **{"text-align": "right"}
+    )
 
 
 # ─────────────────────────────────────────────
@@ -213,24 +300,46 @@ except Exception as e:
 
 # 예산 열 찾기
 bc = {
-    "dept": find_col(bdf.columns, ["부서(팀명)", "부서명", "부서"]),
-    "dept_code": find_col(bdf.columns, ["부서코드"]),
-    "task": find_col(bdf.columns, ["과제명", "과제번호"]),
+    "dept": find_col(
+        bdf.columns,
+        ["부서(팀명)", "부서명", "부서"]
+    ),
+    "dept_code": find_col(
+        bdf.columns,
+        ["부서코드"]
+    ),
+    "task": find_col(
+        bdf.columns,
+        ["과제명", "과제번호"]
+    ),
     "nrf": find_col(
         bdf.columns,
-        ["한국연구재단비목(드롭박스)", "한국연구재단비목", "연구재단비목"]
+        [
+            "한국연구재단비목(드롭박스)",
+            "한국연구재단비목",
+            "연구재단비목"
+        ]
     ),
     "account": find_col(
         bdf.columns,
         ["교내계정과목(드롭박스)", "교내계정과목"]
     ),
-    "account_code": find_col(bdf.columns, ["계정코드"]),
-    "fund": find_col(bdf.columns, ["자금코드"]),
+    "account_code": find_col(
+        bdf.columns,
+        ["계정코드"]
+    ),
+    "fund": find_col(
+        bdf.columns,
+        ["자금코드"]
+    ),
     "budget": find_col(
         bdf.columns,
         ["최초예산", "최종예산", "변경예산", "예산액", "예산"]
     ),
-    "area": find_col(bdf.columns, ["영역1", "사업영역", "영역"])
+    "area": find_col(
+        bdf.columns,
+        ["영역1", "사업영역", "영역"]
+    )
 }
 
 missing_b = [
@@ -275,7 +384,10 @@ try:
 
         if (
             any(v == "전기일" for v in vals)
-            and any(v in ("금액(현지통화)", "금액(현지 통화)") for v in vals)
+            and any(
+                v in ("금액(현지통화)", "금액(현지 통화)")
+                for v in vals
+            )
         ):
             header_idx = i
             break
@@ -293,23 +405,38 @@ except Exception as e:
 
 # 집행 열 찾기
 ec = {
-    "dept": find_col(edf.columns, ["지출 부서", "지출부서", "부서명"]),
+    "dept": find_col(
+        edf.columns,
+        ["지출 부서", "지출부서", "부서명"]
+    ),
     "nrf": find_col(
         edf.columns,
         ["연구재단 비목", "연구재단비목", "한국연구재단비목"]
     ),
-    "task": find_col(edf.columns, ["과제번호", "과제 번호"]),
-    "fund": find_col(edf.columns, ["자금", "자금코드"]),
+    "task": find_col(
+        edf.columns,
+        ["과제번호", "과제 번호"]
+    ),
+    "fund": find_col(
+        edf.columns,
+        ["자금", "자금코드"]
+    ),
     "account_code": find_col(
         edf.columns,
         ["계정과목", "계정코드", "G/L 계정"]
     ),
-    "date": find_col(edf.columns, ["전기일", "증빙일", "입력일"]),
+    "date": find_col(
+        edf.columns,
+        ["전기일", "증빙일", "입력일"]
+    ),
     "amount": find_col(
         edf.columns,
         ["금액(현지 통화)", "금액(현지통화)", "금액"]
     ),
-    "drcr": find_col(edf.columns, ["차변/대변 지시자", "차변대변지시자"])
+    "drcr": find_col(
+        edf.columns,
+        ["차변/대변 지시자", "차변대변지시자"]
+    )
 }
 
 missing_e = [
@@ -595,6 +722,7 @@ k1, k2, k3, k4 = st.columns(4)
 k1.metric("선택 예산액", money(total_b))
 k2.metric("누적 순집행액", money(total_e))
 k3.metric("예산 잔액(단순 계산)", money(total_b - total_e))
+
 k4.metric(
     "집행률",
     f"{total_e / total_b * 100:.1f}%"
@@ -626,7 +754,7 @@ if not monthly.empty:
         y="집행액",
         text="집행액",
         title="월별 순집행액",
-        color_discrete_sequence=["#3498DB"]
+        color_discrete_sequence=[COLOR_EXECUTION]
     )
 
     fig.update_traces(
@@ -645,7 +773,10 @@ if not monthly.empty:
     fig.update_layout(
         xaxis_title="월",
         yaxis_title="집행액(원)",
-        showlegend=False
+        showlegend=False,
+        title_font_color=COLOR_TITLE,
+        plot_bgcolor="white",
+        paper_bgcolor="white"
     )
 
     st.plotly_chart(fig, use_container_width=True)
@@ -662,7 +793,10 @@ if not monthly.empty:
     )
 
     st.dataframe(
-        monthly_display,
+        right_align_columns(
+            monthly_display,
+            ["집행액", "누적집행액"]
+        ),
         use_container_width=True,
         hide_index=True
     )
@@ -702,7 +836,7 @@ if not nrf_summary.empty:
         names="비목별표시",
         values="예산액",
         title="전체 예산 중 비목별 구성 비율",
-        color_discrete_sequence=px.colors.qualitative.Set3
+        color_discrete_sequence=BLUE_PALETTE
     )
 
     fig.update_traces(
@@ -717,7 +851,9 @@ if not nrf_summary.empty:
     )
 
     fig.update_layout(
-        legend_title_text="한국연구재단비목"
+        legend_title_text="한국연구재단비목",
+        title_font_color=COLOR_TITLE,
+        paper_bgcolor="white"
     )
 
     st.plotly_chart(fig, use_container_width=True)
@@ -728,7 +864,10 @@ if not nrf_summary.empty:
     )
 
     st.dataframe(
-        nrf_display,
+        right_align_columns(
+            nrf_display,
+            ["예산액"]
+        ),
         use_container_width=True,
         hide_index=True
     )
@@ -771,8 +910,8 @@ if not dept_summary.empty:
         barmode="group",
         title="부서별 예산·누적집행 비교 (예산액 상위 15개)",
         color_discrete_map={
-            "예산액": "#9B59B6",
-            "누적집행액": "#E67E22"
+            "예산액": COLOR_BUDGET,
+            "누적집행액": COLOR_EXECUTION
         }
     )
 
@@ -790,7 +929,10 @@ if not dept_summary.empty:
         xaxis_title="부서",
         yaxis_title="금액(원)",
         xaxis_tickangle=-35,
-        legend_title_text="구분"
+        legend_title_text="구분",
+        title_font_color=COLOR_TITLE,
+        plot_bgcolor="white",
+        paper_bgcolor="white"
     )
 
     st.plotly_chart(fig, use_container_width=True)
@@ -801,7 +943,10 @@ if not dept_summary.empty:
     )
 
     st.dataframe(
-        dept_display,
+        right_align_columns(
+            dept_display,
+            ["예산액", "누적집행액", "잔액"]
+        ),
         use_container_width=True,
         hide_index=True
     )
@@ -842,7 +987,10 @@ area_display["집행률(%)"] = area_display["집행률(%)"].map(
 )
 
 st.dataframe(
-    area_display,
+    right_align_columns(
+        area_display,
+        ["예산액", "누적집행액", "잔액"]
+    ),
     use_container_width=True,
     hide_index=True
 )
@@ -862,8 +1010,8 @@ fig = px.bar(
     barmode="group",
     title="영역별 예산·누적집행 비교",
     color_discrete_map={
-        "예산액": "#16A085",
-        "누적집행액": "#F1C40F"
+        "예산액": COLOR_BUDGET_SUB,
+        "누적집행액": COLOR_EXECUTION_SUB
     }
 )
 
@@ -880,7 +1028,10 @@ fig.update_yaxes(tickformat=",.0f")
 fig.update_layout(
     xaxis_title="사업 영역",
     yaxis_title="금액(원)",
-    legend_title_text="구분"
+    legend_title_text="구분",
+    title_font_color=COLOR_TITLE,
+    plot_bgcolor="white",
+    paper_bgcolor="white"
 )
 
 st.plotly_chart(fig, use_container_width=True)
@@ -922,7 +1073,10 @@ summary_display["집행률(%)"] = summary_display["집행률(%)"].map(
 )
 
 st.dataframe(
-    summary_display,
+    right_align_columns(
+        summary_display,
+        ["예산액", "누적집행액", "잔액"]
+    ),
     use_container_width=True,
     hide_index=True
 )
@@ -971,7 +1125,10 @@ detail = format_money_columns(
 detail["전기일"] = detail["전기일"].dt.strftime("%Y-%m-%d")
 
 st.dataframe(
-    detail,
+    right_align_columns(
+        detail,
+        ["원본 금액"]
+    ),
     use_container_width=True,
     hide_index=True
 )
@@ -1024,7 +1181,10 @@ with st.expander("미연결 집행 내역 확인"):
     )
 
     st.dataframe(
-        unmatched_display,
+        right_align_columns(
+            unmatched_display,
+            ["누적집행액"]
+        ),
         use_container_width=True,
         hide_index=True
     )
