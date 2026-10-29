@@ -811,7 +811,7 @@ else:
 
 st.subheader("부서별 예산 대비 집행")
 
-# 부서명이 비어 있는 행 제거 후 부서별 집계
+# 빈 부서명 제거
 summary_for_dept = summary.copy()
 summary_for_dept["부서명"] = (
     summary_for_dept["부서명"]
@@ -819,10 +819,12 @@ summary_for_dept["부서명"] = (
     .astype(str)
     .str.strip()
 )
+
 summary_for_dept = summary_for_dept[
     summary_for_dept["부서명"] != ""
 ].copy()
 
+# 부서별 예산액·누적집행액·잔액 집계
 dept_summary = (
     summary_for_dept.groupby(
         "부서명",
@@ -830,19 +832,24 @@ dept_summary = (
     )[["예산액", "누적집행액", "잔액"]]
     .sum()
     .sort_values("예산액", ascending=False)
+    .reset_index(drop=True)
 )
 
-# 집행률 계산: 누적집행액 / 예산액 × 100
+# 집행률 = 누적집행액 / 예산액 × 100
 dept_summary["집행률(%)"] = (
     dept_summary["누적집행액"]
-    .div(dept_summary["예산액"].where(dept_summary["예산액"] != 0))
+    .div(
+        dept_summary["예산액"].where(
+            dept_summary["예산액"] != 0
+        )
+    )
     .mul(100)
     .fillna(0)
 )
 
 if not dept_summary.empty:
 
-    # 그래프는 예산액 상위 15개 부서만 표시
+    # 그래프는 기존처럼 예산액 상위 15개 부서만 표시
     dept_chart = dept_summary.head(15).copy()
 
     dept_long = dept_chart.melt(
@@ -887,37 +894,40 @@ if not dept_summary.empty:
 
     st.plotly_chart(fig, use_container_width=True)
 
-    # 표 금액 서식 적용
+    # 전체 부서 표: 그래프와 달리 상위 15개 제한 없음
+    dept_display = dept_summary[
+        ["부서명", "예산액", "누적집행액", "잔액", "집행률(%)"]
+    ].copy()
+
+    # 금액은 천 단위 콤마 표시
     dept_display = format_money_columns(
-        dept_summary,
+        dept_display,
         ["예산액", "누적집행액", "잔액"]
     )
 
-    # 집행률을 백분율로 표시
-    dept_display["집행률(%)"] = dept_summary["집행률(%)"].map(
-        lambda x: f"{x:.1f}%"
+    # 집행률은 소수점 첫째 자리까지 표시
+    dept_display["집행률(%)"] = dept_summary[
+        "집행률(%)"
+    ].map(lambda x: f"{x:.1f}%")
+
+    # 전체 부서가 보이도록 표 높이 조정
+    table_height = min(
+        max(120, 35 * (len(dept_display) + 1) + 3),
+        20000
     )
 
-    # 표 열 순서: 집행률을 맨 오른쪽에 배치
-    dept_display = dept_display[
-        ["부서명", "예산액", "누적집행액", "잔액", "집행률(%)"]
-    ]
+    st.caption(f"전체 부서 수: {len(dept_display):,}개")
 
     st.dataframe(
-        right_align_columns(
-            dept_display,
-            ["예산액", "누적집행액", "잔액", "집행률(%)"]
-        ),
+        align_table(dept_display),
         use_container_width=True,
         hide_index=True,
-        height=min(
-            max(120, 35 * (len(dept_display) + 1) + 3),
-            20000
-        )
+        height=table_height
     )
 
 else:
     st.info("표시할 부서별 예산 자료가 없습니다.")
+
 
 
 # ─────────────────────────────────────────────
