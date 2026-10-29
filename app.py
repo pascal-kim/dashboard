@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+from pandas.io.formats.style import Styler
 import plotly.express as px
 import re
 from datetime import datetime
@@ -14,55 +15,137 @@ st.set_page_config(
 # 색상 테마
 # ─────────────────────────────────────────────
 
-COLOR_TITLE = "#111D37"
-COLOR_BUDGET = "#223D72"
-COLOR_BUDGET_SUB = "#345CAD"
-COLOR_EXECUTION = "#5F84CF"
-COLOR_EXECUTION_SUB = "#9AB1E0"
-COLOR_COMPARE = "#7186A8"
-COLOR_EXTRA = "#6FA6B8"
-COLOR_BACKGROUND = "#D0D9E8"
+# 흑백·그레이 인쇄에 적합한 색상 팔레트
+COLOR_TITLE = "#111111"
+COLOR_BUDGET = "#333333"
+COLOR_BUDGET_SUB = "#555555"
+COLOR_EXECUTION = "#888888"
+COLOR_EXECUTION_SUB = "#AAAAAA"
+COLOR_COMPARE = "#666666"
+COLOR_EXTRA = "#999999"
+COLOR_BACKGROUND = "#EEEEEE"
 
 BLUE_PALETTE = [
-    COLOR_BUDGET,
-    COLOR_BUDGET_SUB,
-    COLOR_EXECUTION,
-    COLOR_EXECUTION_SUB,
-    COLOR_COMPARE,
-    COLOR_EXTRA,
-    COLOR_BACKGROUND,
+    "#333333", "#555555", "#777777", "#999999",
+    "#BBBBBB", "#D0D0D0", "#E5E5E5",
 ]
 
 st.markdown(
-    f"""
+    """
     <style>
-    h1, h2, h3 {{
-        color: {COLOR_TITLE};
-    }}
-
-    [data-testid="stMetric"] {{
-        background-color: {COLOR_BACKGROUND};
+    h1, h2, h3 { color: #111111; }
+    [data-testid="stMetric"] {
+        background-color: #EEEEEE;
         padding: 14px;
         border-radius: 8px;
-    }}
+        border: 1px solid #D0D0D0;
+    }
+    [data-testid="stMetricLabel"] { color: #222222; }
+    [data-testid="stMetricValue"] { color: #111111; font-weight: 700; }
+    [data-testid="stSidebar"] { border-right: 1px solid #CCCCCC; }
+    div[data-testid="stDataFrame"] {
+        border: 1px solid #CCCCCC;
+        border-radius: 4px;
+    }
 
-    [data-testid="stMetricLabel"] {{
-        color: {COLOR_TITLE};
-    }}
+    /* 화면에서는 인쇄 전용 정적 표를 숨김 */
+    .print-table-wrap, .report-print-only { display: none; }
 
-    [data-testid="stMetricValue"] {{
-        color: {COLOR_TITLE};
-        font-weight: 700;
-    }}
-
-    [data-testid="stSidebar"] {{
-        border-right: 1px solid {COLOR_BACKGROUND};
-    }}
-
-    div[data-testid="stDataFrame"] {{
-        border: 1px solid {COLOR_BACKGROUND};
-        border-radius: 6px;
-    }}
+    @media print {
+        @page { size: A4 landscape; margin: 10mm; }
+        html, body, .stApp, [data-testid="stAppViewContainer"] {
+            width: 100% !important;
+            max-width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #FFFFFF !important;
+            color: #000000 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+        [data-testid="stSidebar"],
+        [data-testid="stToolbar"],
+        [data-testid="stHeader"],
+        [data-testid="stDecoration"],
+        [data-testid="stStatusWidget"],
+        [data-testid="stFileUploader"],
+        .stFileUploader,
+        .stButton,
+        .stDownloadButton,
+        button,
+        input,
+        select,
+        textarea {
+            display: none !important;
+        }
+        [data-testid="stMainBlockContainer"] {
+            width: 100% !important;
+            max-width: 100% !important;
+            padding: 0 !important;
+            margin: 0 !important;
+        }
+        [data-testid="stDataFrame"] { display: none !important; }
+        .print-table-wrap {
+            display: block !important;
+            width: 100% !important;
+            margin: 4mm 0 7mm 0 !important;
+            overflow: visible !important;
+            break-inside: auto;
+        }
+        .print-table {
+            width: 100% !important;
+            border-collapse: collapse !important;
+            table-layout: auto !important;
+            font-size: 8pt !important;
+            color: #000000 !important;
+            background: #FFFFFF !important;
+        }
+        .print-table thead { display: table-header-group; }
+        .print-table tr { break-inside: avoid; page-break-inside: avoid; }
+        .print-table th, .print-table td {
+            border: 0.5pt solid #888888 !important;
+            padding: 3pt 4pt !important;
+            color: #000000 !important;
+            background: #FFFFFF !important;
+            vertical-align: top !important;
+            overflow-wrap: anywhere !important;
+        }
+        .print-table th {
+            background: #E5E5E5 !important;
+            font-weight: 700 !important;
+            text-align: center !important;
+        }
+        .report-print-only {
+            display: block !important;
+            border-bottom: 1pt solid #555555;
+            padding: 0 0 5mm 0;
+            margin-bottom: 5mm;
+            font-size: 9pt;
+            color: #222222 !important;
+        }
+        h1, h2, h3, h4 { color: #000000 !important; break-after: avoid; }
+        h2, h3 { margin-top: 5mm !important; margin-bottom: 2mm !important; }
+        [data-testid="stMetric"] {
+            background: #F2F2F2 !important;
+            border: 0.5pt solid #999999 !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+            break-inside: avoid;
+        }
+        [data-testid="stMetricLabel"], [data-testid="stMetricValue"] {
+            color: #000000 !important;
+        }
+        [data-testid="stPlotlyChart"], .js-plotly-plot {
+            width: 100% !important;
+            max-width: 100% !important;
+            background: #FFFFFF !important;
+            break-inside: avoid;
+            page-break-inside: avoid;
+        }
+        svg, canvas, img { max-width: 100% !important; }
+        .element-container { max-width: 100% !important; }
+        a { color: #000000 !important; text-decoration: none !important; }
+    }
     </style>
     """,
     unsafe_allow_html=True
@@ -256,23 +339,52 @@ def right_align_columns(df, columns):
     )
 
 
+def render_report_table(data, *args, **kwargs):
+    """화면용 표와 브라우저 인쇄용 전체 정적 HTML 표를 함께 표시."""
+    st.dataframe(data, *args, **kwargs)
+
+    if isinstance(data, Styler):
+        printable_df = data.data.copy()
+    elif isinstance(data, pd.DataFrame):
+        printable_df = data.copy()
+    else:
+        return
+
+    hide_index = kwargs.get("hide_index", False)
+    html_table = printable_df.to_html(
+        index=not hide_index,
+        classes="print-table",
+        border=0,
+        escape=True,
+        na_rep=""
+    )
+    st.markdown(
+        f'<div class="print-table-wrap">{html_table}</div>',
+        unsafe_allow_html=True
+    )
+
+
 # ─────────────────────────────────────────────
 # 파일 업로드
 # ─────────────────────────────────────────────
 
-st.sidebar.header("파일 업로드")
+# 업로드 영역을 사이드바가 아닌 메인 화면 상단에 표시해 항상 쉽게 찾을 수 있도록 함
+st.subheader("파일 업로드")
+upload_col1, upload_col2 = st.columns(2)
 
-budget_file = st.sidebar.file_uploader(
-    "① 예산내역 엑셀 파일",
-    type=["xlsx", "xls"],
-    key="budget"
-)
+with upload_col1:
+    budget_file = st.file_uploader(
+        "① 예산내역 엑셀 파일",
+        type=["xlsx", "xls"],
+        key="budget"
+    )
 
-execution_file = st.sidebar.file_uploader(
-    "② 집행내역 엑셀 파일",
-    type=["xlsx", "xls"],
-    key="execution"
-)
+with upload_col2:
+    execution_file = st.file_uploader(
+        "② 집행내역 엑셀 파일",
+        type=["xlsx", "xls"],
+        key="execution"
+    )
 
 # 파일명에 포함된 날짜(예: 20261029)를 기준으로 업데이트일 표시
 budget_update_date = (
@@ -297,6 +409,20 @@ with update_col2:
         st.write("파일 미업로드")
     else:
         st.write(execution_update_date or "날짜 확인 불가")
+
+
+# 인쇄 시에만 표시되는 보고서 메타정보
+st.markdown(
+    f"""
+    <div class="report-print-only">
+        <strong>혁신지원사업 예산·집행 현황</strong><br>
+        출력일: {datetime.now().strftime('%Y년 %m월 %d일')} &nbsp; | &nbsp;
+        예산내역 업데이트일: {budget_update_date or '확인 불가'} &nbsp; | &nbsp;
+        집행내역 업데이트일: {execution_update_date or '확인 불가'}
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 
 if not budget_file or not execution_file:
     st.info(
@@ -813,6 +939,7 @@ if not monthly.empty:
     fig.update_yaxes(tickformat=",.0f")
 
     fig.update_layout(
+        template="plotly_white",
         xaxis_title="월",
         yaxis_title="집행액(원)",
         showlegend=False,
@@ -834,7 +961,7 @@ if not monthly.empty:
         ["집행액", "누적집행액"]
     )
 
-    st.dataframe(
+    render_report_table(
         right_align_columns(
             monthly_display,
             ["집행액", "누적집행액"]
@@ -893,6 +1020,7 @@ if not nrf_summary.empty:
     )
 
     fig.update_layout(
+        template="plotly_white",
         legend_title_text="한국연구재단비목",
         title_font_color=COLOR_TITLE,
         paper_bgcolor="white"
@@ -905,7 +1033,7 @@ if not nrf_summary.empty:
         ["예산액"]
     )
 
-    st.dataframe(
+    render_report_table(
         right_align_columns(
             nrf_display,
             ["예산액"]
@@ -968,6 +1096,7 @@ if not dept_summary.empty:
     fig.update_yaxes(tickformat=",.0f")
 
     fig.update_layout(
+        template="plotly_white",
         xaxis_title="부서",
         yaxis_title="금액(원)",
         xaxis_tickangle=-35,
@@ -984,7 +1113,7 @@ if not dept_summary.empty:
         ["예산액", "누적집행액", "잔액"]
     )
 
-    st.dataframe(
+    render_report_table(
         right_align_columns(
             dept_display,
             ["예산액", "누적집행액", "잔액"]
@@ -1028,7 +1157,7 @@ area_display["집행률(%)"] = area_display["집행률(%)"].map(
     lambda x: f"{x:.1f}%"
 )
 
-st.dataframe(
+render_report_table(
     right_align_columns(
         area_display,
         ["예산액", "누적집행액", "잔액"]
@@ -1068,6 +1197,7 @@ fig.update_traces(
 fig.update_yaxes(tickformat=",.0f")
 
 fig.update_layout(
+        template="plotly_white",
     xaxis_title="사업 영역",
     yaxis_title="금액(원)",
     legend_title_text="구분",
@@ -1114,7 +1244,7 @@ summary_display["집행률(%)"] = summary_display["집행률(%)"].map(
     lambda x: f"{x:.1f}%"
 )
 
-st.dataframe(
+render_report_table(
     right_align_columns(
         summary_display,
         ["예산액", "누적집행액", "잔액"]
@@ -1166,7 +1296,7 @@ detail = format_money_columns(
 
 detail["전기일"] = detail["전기일"].dt.strftime("%Y-%m-%d")
 
-st.dataframe(
+render_report_table(
     right_align_columns(
         detail,
         ["원본 금액"]
@@ -1222,7 +1352,7 @@ with st.expander("미연결 집행 내역 확인"):
         ["누적집행액"]
     )
 
-    st.dataframe(
+    render_report_table(
         right_align_columns(
             unmatched_display,
             ["누적집행액"]
@@ -1234,7 +1364,6 @@ with st.expander("미연결 집행 내역 확인"):
     st.caption(
         "미연결은 부서명·과제번호·자금코드·연구재단비목·"
         "계정코드가 예산 파일과 정확히 일치하지 않는 경우입니다. "
-        "인건비의 경우, 인별분할(세부과제) 계정과목등이 분화되어있어 미연결될 수 있습니다."
         "예산과 연결되지 않은 집행액도 월별 집행 그래프에는 포함됩니다."
     )
 
