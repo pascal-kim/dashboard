@@ -1041,7 +1041,12 @@ monthly = (
     .sort_values("월")
     .reset_index(drop=True)
 )
+# 월 표시를 2026년 3월 형식으로 변경
+monthly["월"] = pd.to_datetime(monthly["월"]).apply(
+    lambda d: f"{d.year}년 {d.month}월"
+)
 
+if not monthly.empty:
 if not monthly.empty:
 
     # 누적집행액 계산
