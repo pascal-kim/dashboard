@@ -918,77 +918,89 @@ nrf_summary = nrf_summary.sort_values(
 
 if not nrf_summary.empty:
 
-    # 원그래프는 기존 색상 팔레트 유지
-    fig = px.pie(
-        nrf_summary,
-        names="비목별표시",
-        values="비목별 예산액",
-        title="전체 예산 중 비목별 구성 비율",
-        color_discrete_sequence=BLUE_PALETTE
-    )
+    # 원그래프와 표를 좌우로 배치
+    pie_col, table_col = st.columns([1, 1.25], gap="medium")
 
-    fig.update_traces(
-        textposition="inside",
-        texttemplate="%{label}<br>%{percent}",
-        hovertemplate=(
-            "%{label}<br>"
-            "예산액: %{value:,.0f}원"
-            "<extra></extra>"
+    with pie_col:
+        fig = px.pie(
+            nrf_summary,
+            names="비목별표시",
+            values="비목별 예산액",
+            title="전체 예산 중 비목별 구성 비율",
+            color_discrete_sequence=BLUE_PALETTE
         )
-    )
 
-    fig.update_layout(
-        legend_title_text="한국연구재단비목",
-        title_font_color=COLOR_TITLE,
-        paper_bgcolor="white"
-    )
-
-    st.plotly_chart(fig, use_container_width=True)
-
-    # 비목별 집계표
-    nrf_display = nrf_summary[
-        [
-            "비목별표시",
-            "비목별 예산액",
-            "비목누적집행액",
-            "누적집행률(%)"
-        ]
-    ].copy()
-
-    nrf_display = nrf_display.rename(
-        columns={"비목별표시": "한국연구재단비목"}
-    )
-
-    nrf_display = format_money_columns(
-        nrf_display,
-        ["비목별 예산액", "비목누적집행액"]
-    )
-
-    nrf_display["누적집행률(%)"] = (
-        nrf_display["누적집행률(%)"].map(
-            lambda x: f"{x:.1f}%"
+        fig.update_traces(
+            textposition="inside",
+            texttemplate="%{label}<br>%{percent}",
+            hovertemplate=(
+                "%{label}<br>"
+                "예산액: %{value:,.0f}원"
+                "<extra></extra>"
+            )
         )
-    )
 
-    st.dataframe(
-        right_align_columns(
-            nrf_display,
+        fig.update_layout(
+            legend_title_text="한국연구재단비목",
+            title_font_color=COLOR_TITLE,
+            paper_bgcolor="white",
+            margin=dict(l=10, r=10, t=60, b=10)
+        )
+
+        st.plotly_chart(
+            fig,
+            use_container_width=True
+        )
+
+    with table_col:
+        st.markdown("#### 비목별 예산 및 집행 현황")
+
+        nrf_display = nrf_summary[
             [
+                "비목별표시",
                 "비목별 예산액",
                 "비목누적집행액",
                 "누적집행률(%)"
             ]
-        ),
-        use_container_width=True,
-        hide_index=True,
-        height=min(
-            max(120, 35 * (len(nrf_display) + 1) + 3),
-            20000
+        ].copy()
+
+        nrf_display = nrf_display.rename(
+            columns={
+                "비목별표시": "한국연구재단비목"
+            }
         )
-    )
+
+        nrf_display = format_money_columns(
+            nrf_display,
+            ["비목별 예산액", "비목누적집행액"]
+        )
+
+        nrf_display["누적집행률(%)"] = (
+            nrf_display["누적집행률(%)"].map(
+                lambda x: f"{x:.1f}%"
+            )
+        )
+
+        st.dataframe(
+            right_align_columns(
+                nrf_display,
+                [
+                    "비목별 예산액",
+                    "비목누적집행액",
+                    "누적집행률(%)"
+                ]
+            ),
+            use_container_width=True,
+            hide_index=True,
+            height=min(
+                max(180, 35 * (len(nrf_display) + 1) + 3),
+                20000
+            )
+        )
 
 else:
     st.info("표시할 비목별 예산 자료가 없습니다.")
+
 
 
 
