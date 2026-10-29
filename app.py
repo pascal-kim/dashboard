@@ -149,7 +149,7 @@ st.markdown(
     }
     </style>
     """,
-    unsafe_allow_html=True
+    unsafe_allow_html=True)
 
 st.title("혁신지원사업 예산 대시보드")
 st.caption(
