@@ -1,190 +1,16 @@
+
 import streamlit as st
 import pandas as pd
 import plotly.express as px
 import re
-from datetime import datetime
 
 st.set_page_config(
-    page_title="Innovation_Pascal@",
+    page_title="MIRAE Innovation support",
     page_icon="📊",
     layout="wide"
 )
-  
-#─────────────────────────────────────────────
-# 인쇄 전용 보고서 스타일 (기존 기능 변경 없음)
-# ─────────────────────────────────────────────
-st.markdown(
-    """
-    <style>
-    @media print {
 
-        /* A4 가로 방향 및 여백 */
-        @page {
-            size: A4 landscape;
-            margin: 10mm;
-        }
-
-        /* 기본 페이지 설정 */
-        html, body, .stApp {
-            width: 100% !important;
-            min-width: 0 !important;
-            background: #ffffff !important;
-            color: #000000 !important;
-            font-size: 10pt !important;
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
-        }
-
-        /* 인쇄 시 불필요한 화면 요소 숨기기 */
-        [data-testid="stSidebar"],
-        [data-testid="stHeader"],
-        [data-testid="stToolbar"],
-        [data-testid="stDecoration"],
-        [data-testid="stStatusWidget"],
-        [data-testid="stFileUploader"],
-        [data-testid="stButton"],
-        [data-testid="stDownloadButton"],
-        [data-testid="stForm"],
-        footer,
-        header {
-            display: none !important;
-        }
-
-        /* 메인 영역 전체 너비 사용 */
-        [data-testid="stAppViewContainer"],
-        [data-testid="stMain"],
-        [data-testid="stMainBlockContainer"],
-        .block-container {
-            width: 100% !important;
-            max-width: 100% !important;
-            min-width: 0 !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            overflow: visible !important;
-        }
-
-        /* 제목과 본문 */
-        h1 {
-            font-size: 22pt !important;
-            color: #000000 !important;
-            border-bottom: 2px solid #333333;
-            padding-bottom: 8px !important;
-            margin-bottom: 12px !important;
-        }
-
-        h2 {
-            font-size: 15pt !important;
-            color: #222222 !important;
-            border-bottom: 1px solid #999999;
-            padding-bottom: 4px !important;
-            margin-top: 18px !important;
-        }
-
-        h3 {
-            font-size: 12pt !important;
-            color: #333333 !important;
-            margin-top: 12px !important;
-        }
-
-        p, label, span {
-            color: #222222;
-        }
-
-
-        /* 차트: 컬러를 흑백으로 변환하고 페이지 분할 방지 */
-        [data-testid="stPlotlyChart"],
-        [data-testid="stVegaLiteChart"],
-        [data-testid="stArrowVegaLiteChart"],
-        .element-container:has([data-testid="stPlotlyChart"]) {
-            width: 100% !important;
-            max-width: 100% !important;
-            filter: grayscale(100%) !important;
-            break-inside: avoid !important;
-            page-break-inside: avoid !important;
-            overflow: visible !important;
-        }
-
-        /* 차트 조작 도구 숨기기 */
-        .modebar,
-        .modebar-container {
-            display: none !important;
-        }
-
-        /* 데이터 표 */
-        [data-testid="stDataFrame"],
-        [data-testid="stTable"] {
-            width: 100% !important;
-            max-width: 100% !important;
-            overflow: visible !important;
-            break-inside: auto !important;
-            page-break-inside: auto !important;
-            border: 1px solid #999999 !important;
-        }
-
-        [data-testid="stDataFrame"] iframe {
-            width: 100% !important;
-            max-width: 100% !important;
-        }
-
-        table {
-            width: 100% !important;
-            border-collapse: collapse !important;
-            font-size: 8pt !important;
-        }
-
-        th, td {
-            color: #000000 !important;
-            background: #ffffff !important;
-            border: 1px solid #999999 !important;
-            padding: 4px 6px !important;
-            white-space: normal !important;
-            overflow-wrap: anywhere !important;
-        }
-
-        th {
-            background: #e6e6e6 !important;
-            font-weight: 700 !important;
-        }
-
-        /* 구분선 */
-        hr {
-            border: none !important;
-            border-top: 1px solid #999999 !important;
-            margin: 12px 0 !important;
-        }
-
-        /* 빈 공간과 불필요한 여백 최소화 */
-        [data-testid="stVerticalBlock"] {
-            gap: 0.6rem !important;
-        }
-
-        /* 콘텐츠가 페이지 경계에서 잘리는 현상 최소화 */
-        img, svg, canvas {
-            max-width: 100% !important;
-        }
-
-        /* 보고서 요소가 중간에 분리되지 않도록 설정 */
-        .print-keep-together {
-            break-inside: avoid !important;
-            page-break-inside: avoid !important;
-        }
-
-        /* 링크 주소 출력 방지 */
-        a[href]::after {
-            content: none !important;
-        }
-    }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
-
-
-
-# ─────────────────────────────────────────────
 # 색상 테마
-# ─────────────────────────────────────────────
-
 COLOR_TITLE = "#111D37"
 COLOR_BUDGET = "#223D72"
 COLOR_BUDGET_SUB = "#345CAD"
@@ -207,29 +33,20 @@ BLUE_PALETTE = [
 st.markdown(
     f"""
     <style>
-    h1, h2, h3 {{
-        color: {COLOR_TITLE};
-    }}
-
+    h1, h2, h3 {{ color: {COLOR_TITLE}; }}
     [data-testid="stMetric"] {{
         background-color: {COLOR_BACKGROUND};
         padding: 14px;
         border-radius: 8px;
     }}
-
-    [data-testid="stMetricLabel"] {{
-        color: {COLOR_TITLE};
-    }}
-
+    [data-testid="stMetricLabel"] {{ color: {COLOR_TITLE}; }}
     [data-testid="stMetricValue"] {{
         color: {COLOR_TITLE};
         font-weight: 700;
     }}
-
     [data-testid="stSidebar"] {{
         border-right: 1px solid {COLOR_BACKGROUND};
     }}
-
     div[data-testid="stDataFrame"] {{
         border: 1px solid {COLOR_BACKGROUND};
         border-radius: 6px;
@@ -239,10 +56,10 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-st.title("혁신지원사업 예산 대시보드")
+st.title("연세대(미래) 혁신지원사업예산 대시보드")
 st.caption(
     "예산 파일과 집행 파일을 함께 올리면 "
-    "월별 집행액·예산 대비 집행률을 확인할 수 있습니다."
+    "월별 집행액과 예산 대비 집행률을 확인할 수 있습니다."
 )
 
 
@@ -251,20 +68,14 @@ st.caption(
 # ─────────────────────────────────────────────
 
 def norm(x):
-    return re.sub(
-        r"\s+",
-        "",
-        str(x).replace("\n", "")
-    ).strip().lower()
+    return re.sub(r"\s+", "", str(x).replace("\n", "")).strip().lower()
 
 
 def find_col(columns, candidates):
     cmap = {norm(c): c for c in columns}
-
     for c in candidates:
         if norm(c) in cmap:
             return cmap[norm(c)]
-
     return None
 
 
@@ -275,12 +86,10 @@ def read_budget(upload):
         s for s in xls.sheet_names
         if "예산내역-whatif" in s
     ]
-
     preferred += [
         s for s in xls.sheet_names
         if "예산내역" in s and s not in preferred
     ]
-
     preferred += [
         s for s in xls.sheet_names
         if s not in preferred
@@ -296,7 +105,6 @@ def read_budget(upload):
                 header=1,
                 nrows=3
             )
-
             cn = [norm(c) for c in test.columns]
 
             if (
@@ -306,7 +114,6 @@ def read_budget(upload):
             ):
                 selected = sh
                 break
-
         except Exception:
             pass
 
@@ -317,15 +124,9 @@ def read_budget(upload):
 
 
 def area_class(task, area=""):
-    t = (
-        str(task)
-        .strip()
-        .upper()
-        .replace("[", "")
-        .replace("]", "")
-    )
+    t = str(task).strip().upper().replace("[", "").replace("]", "")
 
-    if "사업관리" in t:
+    if "사업관리" in t or "사업운영" in t:
         return "사업관리"
 
     m = re.match(r"^([A-F])[-－]", t)
@@ -361,23 +162,6 @@ def clean_task(x):
     return s
 
 
-def extract_update_date(filename):
-    """파일명에서 YYYYMMDD 형식의 날짜를 찾아 YYYY년 MM월 DD일로 반환."""
-    if not filename:
-        return None
-
-    # 파일명 중 독립된 8자리 숫자 중 실제 날짜로 유효한 값을 사용
-    for match in re.finditer(r"(?<!\d)(\d{8})(?!\d)", str(filename)):
-        date_text = match.group(1)
-        try:
-            parsed = datetime.strptime(date_text, "%Y%m%d")
-            return parsed.strftime("%Y년 %m월 %d일")
-        except ValueError:
-            continue
-
-    return None
-
-
 def money(x):
     try:
         return f"{float(x):,.0f}원"
@@ -396,8 +180,7 @@ def format_money_columns(df, columns):
                 if pd.notna(x) and isinstance(x, (int, float))
                 else (
                     f"{float(x):,.0f}"
-                    if pd.notna(x)
-                    and str(x).strip() != ""
+                    if pd.notna(x) and str(x).strip() != ""
                     and is_numeric(x)
                     else x
                 )
@@ -414,17 +197,26 @@ def is_numeric(x):
         return False
 
 
-def right_align_columns(df, columns):
-    """지정한 금액 열을 오른쪽 정렬."""
-    cols = [col for col in columns if col in df.columns]
+def align_table(df):
+    """문자 셀은 가운데, 숫자 및 숫자 문자열은 오른쪽 정렬."""
+    def cell_style(value):
+        if pd.isna(value):
+            return "text-align: center;"
 
-    if not cols:
-        return df
+        text = str(value).strip()
+        normalized = text.replace(",", "")
+        if normalized.endswith("%"):
+            normalized = normalized[:-1].strip()
+        if normalized.endswith("원"):
+            normalized = normalized[:-1].strip()
 
-    return df.style.set_properties(
-        subset=cols,
-        **{"text-align": "right"}
-    )
+        try:
+            float(normalized)
+            return "text-align: right; white-space: nowrap;"
+        except (ValueError, TypeError):
+            return "text-align: center;"
+
+    return df.style.map(cell_style)
 
 
 # ─────────────────────────────────────────────
@@ -444,30 +236,6 @@ execution_file = st.sidebar.file_uploader(
     type=["xlsx", "xls"],
     key="execution"
 )
-
-# 파일명에 포함된 날짜(예: 20261029)를 기준으로 업데이트일 표시
-budget_update_date = (
-    extract_update_date(budget_file.name)
-    if budget_file is not None else None
-)
-execution_update_date = (
-    extract_update_date(execution_file.name)
-    if execution_file is not None else None
-)
-
-update_col1, update_col2 = st.columns(2)
-with update_col1:
-    st.markdown("**예산내역 업데이트일:**")
-    if budget_file is None:
-        st.write("파일 미업로드")
-    else:
-        st.write(budget_update_date or "날짜 확인 불가")
-with update_col2:
-    st.markdown("**집행내역 업데이트일:**")
-    if execution_file is None:
-        st.write("파일 미업로드")
-    else:
-        st.write(execution_update_date or "날짜 확인 불가")
 
 if not budget_file or not execution_file:
     st.info(
@@ -513,46 +281,24 @@ except Exception as e:
 
 # 예산 열 찾기
 bc = {
-    "dept": find_col(
-        bdf.columns,
-        ["부서(팀명)", "부서명", "부서"]
-    ),
-    "dept_code": find_col(
-        bdf.columns,
-        ["부서코드"]
-    ),
-    "task": find_col(
-        bdf.columns,
-        ["과제명", "과제번호"]
-    ),
+    "dept": find_col(bdf.columns, ["부서(팀명)", "부서명", "부서"]),
+    "dept_code": find_col(bdf.columns, ["부서코드"]),
+    "task": find_col(bdf.columns, ["과제명", "과제번호"]),
     "nrf": find_col(
         bdf.columns,
-        [
-            "한국연구재단비목(드롭박스)",
-            "한국연구재단비목",
-            "연구재단비목"
-        ]
+        ["한국연구재단비목(드롭박스)", "한국연구재단비목", "연구재단비목"]
     ),
     "account": find_col(
         bdf.columns,
         ["교내계정과목(드롭박스)", "교내계정과목"]
     ),
-    "account_code": find_col(
-        bdf.columns,
-        ["계정코드"]
-    ),
-    "fund": find_col(
-        bdf.columns,
-        ["자금코드"]
-    ),
+    "account_code": find_col(bdf.columns, ["계정코드"]),
+    "fund": find_col(bdf.columns, ["자금코드"]),
     "budget": find_col(
         bdf.columns,
         ["최초예산", "최종예산", "변경예산", "예산액", "예산"]
     ),
-    "area": find_col(
-        bdf.columns,
-        ["영역1", "사업영역", "영역"]
-    )
+    "area": find_col(bdf.columns, ["영역1", "사업영역", "영역"])
 }
 
 missing_b = [
@@ -597,10 +343,7 @@ try:
 
         if (
             any(v == "전기일" for v in vals)
-            and any(
-                v in ("금액(현지통화)", "금액(현지 통화)")
-                for v in vals
-            )
+            and any(v in ("금액(현지통화)", "금액(현지 통화)") for v in vals)
         ):
             header_idx = i
             break
@@ -618,38 +361,23 @@ except Exception as e:
 
 # 집행 열 찾기
 ec = {
-    "dept": find_col(
-        edf.columns,
-        ["지출 부서", "지출부서", "부서명"]
-    ),
+    "dept": find_col(edf.columns, ["지출 부서", "지출부서", "부서명"]),
     "nrf": find_col(
         edf.columns,
         ["연구재단 비목", "연구재단비목", "한국연구재단비목"]
     ),
-    "task": find_col(
-        edf.columns,
-        ["과제번호", "과제 번호"]
-    ),
-    "fund": find_col(
-        edf.columns,
-        ["자금", "자금코드"]
-    ),
+    "task": find_col(edf.columns, ["과제번호", "과제 번호"]),
+    "fund": find_col(edf.columns, ["자금", "자금코드"]),
     "account_code": find_col(
         edf.columns,
         ["계정과목", "계정코드", "G/L 계정"]
     ),
-    "date": find_col(
-        edf.columns,
-        ["전기일", "증빙일", "입력일"]
-    ),
+    "date": find_col(edf.columns, ["전기일", "증빙일", "입력일"]),
     "amount": find_col(
         edf.columns,
         ["금액(현지 통화)", "금액(현지통화)", "금액"]
     ),
-    "drcr": find_col(
-        edf.columns,
-        ["차변/대변 지시자", "차변대변지시자"]
-    )
+    "drcr": find_col(edf.columns, ["차변/대변 지시자", "차변대변지시자"])
 }
 
 missing_e = [
@@ -935,7 +663,6 @@ k1, k2, k3, k4 = st.columns(4)
 k1.metric("선택 예산액", money(total_b))
 k2.metric("누적 순집행액", money(total_e))
 k3.metric("예산 잔액(단순 계산)", money(total_b - total_e))
-
 k4.metric(
     "집행률",
     f"{total_e / total_b * 100:.1f}%"
@@ -967,7 +694,7 @@ if not monthly.empty:
         y="집행액",
         text="집행액",
         title="월별 순집행액",
-        color_discrete_sequence=[COLOR_EXECUTION]
+        color_discrete_sequence=["#3498DB"]
     )
 
     fig.update_traces(
@@ -986,10 +713,7 @@ if not monthly.empty:
     fig.update_layout(
         xaxis_title="월",
         yaxis_title="집행액(원)",
-        showlegend=False,
-        title_font_color=COLOR_TITLE,
-        plot_bgcolor="white",
-        paper_bgcolor="white"
+        showlegend=False
     )
 
     st.plotly_chart(fig, use_container_width=True)
@@ -1006,10 +730,7 @@ if not monthly.empty:
     )
 
     st.dataframe(
-        right_align_columns(
-            monthly_display,
-            ["집행액", "누적집행액"]
-        ),
+        align_table(monthly_display),
         use_container_width=True,
         hide_index=True
     )
@@ -1049,7 +770,7 @@ if not nrf_summary.empty:
         names="비목별표시",
         values="예산액",
         title="전체 예산 중 비목별 구성 비율",
-        color_discrete_sequence=BLUE_PALETTE
+        color_discrete_sequence=px.colors.qualitative.Set3
     )
 
     fig.update_traces(
@@ -1064,9 +785,7 @@ if not nrf_summary.empty:
     )
 
     fig.update_layout(
-        legend_title_text="한국연구재단비목",
-        title_font_color=COLOR_TITLE,
-        paper_bgcolor="white"
+        legend_title_text="한국연구재단비목"
     )
 
     st.plotly_chart(fig, use_container_width=True)
@@ -1077,10 +796,7 @@ if not nrf_summary.empty:
     )
 
     st.dataframe(
-        right_align_columns(
-            nrf_display,
-            ["예산액"]
-        ),
+        align_table(nrf_display),
         use_container_width=True,
         hide_index=True
     )
@@ -1105,8 +821,8 @@ dept_summary = (
 )
 
 if not dept_summary.empty:
-    # 그래프는 예산액 상위 15개 부서만 표시
-    dept_chart = dept_summary.head(15).copy()
+    # 대시보드에서도 모든 부서를 표시
+    dept_chart = dept_summary.copy()
 
     dept_long = dept_chart.melt(
         id_vars="부서명",
@@ -1121,10 +837,10 @@ if not dept_summary.empty:
         y="금액",
         color="구분",
         barmode="group",
-        title="부서별 예산·누적집행 비교 (예산액 상위 15개)",
+        title="부서별 예산·누적집행 비교 (전체 부서)",
         color_discrete_map={
-            "예산액": COLOR_BUDGET,
-            "누적집행액": COLOR_EXECUTION
+            "예산액": "#9B59B6",
+            "누적집행액": "#E67E22"
         }
     )
 
@@ -1141,11 +857,11 @@ if not dept_summary.empty:
     fig.update_layout(
         xaxis_title="부서",
         yaxis_title="금액(원)",
-        xaxis_tickangle=-35,
+        xaxis_tickangle=-45,
         legend_title_text="구분",
-        title_font_color=COLOR_TITLE,
-        plot_bgcolor="white",
-        paper_bgcolor="white"
+        # 부서 수에 맞춰 그래프 높이를 늘려 모든 부서가 보이도록 설정
+        height=max(500, min(1600, 320 + len(dept_chart) * 32)),
+        margin=dict(b=110, t=70, l=50, r=30),
     )
 
     st.plotly_chart(fig, use_container_width=True)
@@ -1155,13 +871,32 @@ if not dept_summary.empty:
         ["예산액", "누적집행액", "잔액"]
     )
 
+    # 부서별 표는 모든 행을 한 번에 볼 수 있도록 행 수에 맞춰 높이 지정
+    dept_table_height = max(100, (len(dept_display) + 1) * 38 + 8)
+
     st.dataframe(
-        right_align_columns(
-            dept_display,
-            ["예산액", "누적집행액", "잔액"]
-        ),
+        align_table(dept_display),
         use_container_width=True,
-        hide_index=True
+        hide_index=True,
+        height=dept_table_height,
+        column_config={
+            "부서명": st.column_config.TextColumn(
+                "부서명",
+                width="large"
+            ),
+            "예산액": st.column_config.TextColumn(
+                "예산액",
+                width="medium"
+            ),
+            "누적집행액": st.column_config.TextColumn(
+                "누적집행액",
+                width="medium"
+            ),
+            "잔액": st.column_config.TextColumn(
+                "잔액",
+                width="medium"
+            ),
+        },
     )
 
 else:
@@ -1200,13 +935,93 @@ area_display["집행률(%)"] = area_display["집행률(%)"].map(
 )
 
 st.dataframe(
-    right_align_columns(
-        area_display,
-        ["예산액", "누적집행액", "잔액"]
-    ),
+    align_table(area_display),
     use_container_width=True,
     hide_index=True
 )
+
+
+# ─────────────────────────────────────────────
+# 4-1. 영역별·비목별 예산 대비 집행액 표
+# ─────────────────────────────────────────────
+
+st.subheader("영역별·비목별 예산 대비 집행액")
+st.caption(
+    "행은 교육·기타·사업관리 영역, 열은 한국연구재단비목이며 "
+    "각 비목 아래에서 예산액·누적집행액·집행률을 비교합니다."
+)
+
+area_item_source = summary.copy()
+area_item_source["비목표시"] = (
+    area_item_source["한국연구재단비목"]
+    .fillna("")
+    .replace("", "비목 미분류")
+)
+area_item_source["영역표시"] = area_item_source["영역구분"].replace({
+    "교육영역": "교육",
+    "기타영역": "기타",
+    "사업관리": "사업관리"
+})
+
+# 요청한 3개 영역만 표에 표시
+fixed_areas = ["교육", "기타", "사업관리"]
+area_item_source = area_item_source[
+    area_item_source["영역표시"].isin(fixed_areas)
+].copy()
+
+if not area_item_source.empty:
+    area_item_summary = (
+        area_item_source.groupby(
+            ["영역표시", "비목표시"],
+            as_index=False,
+            dropna=False
+        )[["예산액", "누적집행액"]]
+        .sum()
+    )
+    area_item_summary["집행률"] = area_item_summary.apply(
+        lambda r: (
+            r["누적집행액"] / r["예산액"] * 100
+            if r["예산액"] else 0
+        ),
+        axis=1
+    )
+
+    item_order = sorted(area_item_summary["비목표시"].unique().tolist())
+    metrics = ["예산액", "누적집행액", "집행률"]
+
+    # 각 비목을 상위 열로 두고 예산액·집행액·집행률을 하위 열로 구성
+    area_item_pivot = area_item_summary.pivot(
+        index="영역표시",
+        columns="비목표시",
+        values=metrics
+    )
+
+    # 열 순서를 비목 → 지표 순서로 변경
+    area_item_pivot = area_item_pivot.swaplevel(0, 1, axis=1)
+    desired_columns = pd.MultiIndex.from_product(
+        [item_order, metrics]
+    )
+    area_item_pivot = area_item_pivot.reindex(columns=desired_columns)
+    area_item_pivot = area_item_pivot.reindex(fixed_areas).fillna(0)
+    area_item_pivot.index.name = "영역"
+
+    # 표에 보이는 금액은 천 단위 콤마, 집행률은 퍼센트로 표시
+    area_item_display = area_item_pivot.copy()
+    for item in item_order:
+        for metric in ["예산액", "누적집행액"]:
+            area_item_display[(item, metric)] = area_item_display[
+                (item, metric)
+            ].map(lambda x: f"{x:,.0f}")
+        area_item_display[(item, "집행률")] = area_item_display[
+            (item, "집행률")
+        ].map(lambda x: f"{x:.1f}%")
+
+    st.dataframe(
+        align_table(area_item_display),
+        use_container_width=True
+    )
+else:
+    st.info("선택한 조회 조건에 해당하는 영역별·비목별 예산 자료가 없습니다.")
 
 area_long = area_summary.melt(
     id_vars="영역구분",
@@ -1223,8 +1038,8 @@ fig = px.bar(
     barmode="group",
     title="영역별 예산·누적집행 비교",
     color_discrete_map={
-        "예산액": COLOR_BUDGET_SUB,
-        "누적집행액": COLOR_EXECUTION_SUB
+        "예산액": "#16A085",
+        "누적집행액": "#F1C40F"
     }
 )
 
@@ -1241,10 +1056,7 @@ fig.update_yaxes(tickformat=",.0f")
 fig.update_layout(
     xaxis_title="사업 영역",
     yaxis_title="금액(원)",
-    legend_title_text="구분",
-    title_font_color=COLOR_TITLE,
-    plot_bgcolor="white",
-    paper_bgcolor="white"
+    legend_title_text="구분"
 )
 
 st.plotly_chart(fig, use_container_width=True)
@@ -1286,10 +1098,7 @@ summary_display["집행률(%)"] = summary_display["집행률(%)"].map(
 )
 
 st.dataframe(
-    right_align_columns(
-        summary_display,
-        ["예산액", "누적집행액", "잔액"]
-    ),
+    align_table(summary_display),
     use_container_width=True,
     hide_index=True
 )
@@ -1338,10 +1147,7 @@ detail = format_money_columns(
 detail["전기일"] = detail["전기일"].dt.strftime("%Y-%m-%d")
 
 st.dataframe(
-    right_align_columns(
-        detail,
-        ["원본 금액"]
-    ),
+    align_table(detail),
     use_container_width=True,
     hide_index=True
 )
@@ -1394,10 +1200,7 @@ with st.expander("미연결 집행 내역 확인"):
     )
 
     st.dataframe(
-        right_align_columns(
-            unmatched_display,
-            ["누적집행액"]
-        ),
+        align_table(unmatched_display),
         use_container_width=True,
         hide_index=True
     )
