@@ -1686,9 +1686,8 @@ else:
             "padding: 8px 10px;"
             "text-align: center;"
             "vertical-align: middle;"
-            "overflow-wrap: anywhere;"
+            "white-space: nowrap;"
         )
-
         # 숫자 셀: 오른쪽 정렬
         number_style = (
             "border: 1px solid #DDDDDD;"
@@ -1707,9 +1706,19 @@ else:
             "font-weight: 600;"
             "background-color: #F0F2F6;"
             "color: #262730;"
-            "overflow-wrap: anywhere;"
+            "white-space: nowrap;"
         )
 
+        # 표 위 단위 표시
+        st.markdown(
+            "<div style='text-align: right; "
+            "font-size: 13px; margin-bottom: 6px;'>"
+            "(단위: 백만원)"
+            "</div>",
+            unsafe_allow_html=True
+        )
+
+        
         # ─────────────────────────────────────
         # HTML 표 시작
         # ─────────────────────────────────────
