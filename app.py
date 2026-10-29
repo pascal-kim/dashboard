@@ -1047,7 +1047,6 @@ monthly["월"] = pd.to_datetime(monthly["월"]).apply(
 )
 
 if not monthly.empty:
-if not monthly.empty:
 
     # 누적집행액 계산
     monthly["누적집행액"] = monthly["집행액"].cumsum()
