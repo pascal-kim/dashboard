@@ -321,6 +321,147 @@ def right_align_columns(df, columns):
         **{"text-align": "right"}
     )
 
+def render_nrf_monthly_table(uploaded_file):
+    """한국연구재단 월별제출자료를 기존 예산·집행 집계와 분리해 표시."""
+    st.subheader("한국연구재단 월별제출자료")
+
+    if uploaded_file is None:
+        st.info(
+            "한국연구재단 월별제출자료 엑셀 파일을 "
+            "업로드하면 이곳에 별도 표로 표시됩니다."
+        )
+        return
+
+    try:
+        import openpyxl
+
+        uploaded_file.seek(0)
+        workbook = openpyxl.load_workbook(
+            uploaded_file,
+            data_only=True
+        )
+
+        # 첫 번째 시트 사용
+        sheet = workbook[workbook.sheetnames[0]]
+
+        # 병합 셀의 값을 읽을 수 있도록 처리
+        merged_values = {}
+
+        for merged_range in sheet.merged_cells.ranges:
+            top_left = sheet.cell(
+                merged_range.min_row,
+                merged_range.min_col
+            ).value
+
+            for row_idx in range(
+                merged_range.min_row,
+                merged_range.max_row + 1
+            ):
+                for col_idx in range(
+                    merged_range.min_col,
+                    merged_range.max_col + 1
+                ):
+                    merged_values[(row_idx, col_idx)] = top_left
+
+        def cell_value(row_idx, col_idx):
+            value = sheet.cell(row_idx, col_idx).value
+
+            if value is None:
+                return merged_values.get(
+                    (row_idx, col_idx),
+                    value
+                )
+
+            return value
+
+        # 다단계 머리글을 하나의 열 이름으로 결합
+        headers = []
+
+        for col_idx in range(1, sheet.max_column + 1):
+            if col_idx == 1:
+                headers.append("영역")
+                continue
+
+            parts = []
+
+            for row_idx in (1, 2, 4, 5):
+                value = cell_value(row_idx, col_idx)
+
+                if value is not None:
+                    value = str(value).strip()
+
+                    if value and (
+                        not parts or parts[-1] != value
+                    ):
+                        parts.append(value)
+
+            headers.append(
+                " / ".join(parts)
+                if parts
+                else f"열{col_idx}"
+            )
+
+        # 데이터 행 읽기
+        rows = []
+
+        for row_idx in range(6, sheet.max_row + 1):
+            values = [
+                sheet.cell(row_idx, col_idx).value
+                for col_idx in range(
+                    1,
+                    sheet.max_column + 1
+                )
+            ]
+
+            if any(value is not None for value in values):
+                rows.append(values)
+
+        table = pd.DataFrame(rows, columns=headers)
+
+        # 빈 열 제거
+        table = table.dropna(axis=1, how="all")
+
+        table = table.loc[
+            :,
+            [
+                col for col in table.columns
+                if not str(col).startswith("열")
+            ]
+        ]
+
+        if table.empty:
+            st.warning(
+                "엑셀 파일에서 표시할 데이터 행을 찾지 못했습니다."
+            )
+            return
+
+        # 숫자형 열은 천 단위 쉼표 표시
+        money_cols = [
+            col for col in table.columns
+            if col != "영역"
+            and pd.api.types.is_numeric_dtype(table[col])
+        ]
+
+        st.dataframe(
+            table.style.format(
+                {col: "{:,.0f}" for col in money_cols},
+                na_rep="—"
+            ),
+            use_container_width=True,
+            hide_index=True
+        )
+
+        st.caption(
+            f"원본 파일: {uploaded_file.name} · "
+            "기존 예산·집행 집계와 별도로 표시됩니다."
+        )
+
+    except Exception as e:
+        st.error(
+            f"한국연구재단 월별제출자료를 읽는 중 오류가 발생했습니다: {e}"
+        )
+
+
 
 # ─────────────────────────────────────────────
 # 파일 업로드
@@ -328,43 +469,87 @@ def right_align_columns(df, columns):
 
 st.sidebar.header("파일 업로드")
 
+# ① 예산내역 파일
 budget_file = st.sidebar.file_uploader(
     "① 예산내역 엑셀 파일",
     type=["xlsx", "xls"],
     key="budget"
 )
 
+# ② 집행내역 파일
 execution_file = st.sidebar.file_uploader(
     "② 집행내역 엑셀 파일",
     type=["xlsx", "xls"],
     key="execution"
 )
 
-# 파일명에 포함된 날짜(예: 20261029)를 기준으로 업데이트일 표시
-budget_update_date = (
-    extract_update_date(budget_file.name)
-    if budget_file is not None else None
-)
-execution_update_date = (
-    extract_update_date(execution_file.name)
-    if execution_file is not None else None
+# ③ 한국연구재단 월별제출자료 파일
+# 기존 예산 및 집행 집계와 별도로 사용
+nrf_monthly_file = st.sidebar.file_uploader(
+    "③ 한국연구재단 월별제출자료 엑셀 파일",
+    type=["xlsx", "xls"],
+    key="nrf_monthly"
 )
 
+# ─────────────────────────────────────────────
+# 파일명에 포함된 날짜를 기준으로 업데이트일 표시
+# 예: 20261029
+# ─────────────────────────────────────────────
+
+budget_update_date = (
+    extract_update_date(budget_file.name)
+    if budget_file is not None
+    else None
+)
+
+execution_update_date = (
+    extract_update_date(execution_file.name)
+    if execution_file is not None
+    else None
+)
+
+# ─────────────────────────────────────────────
+# 예산 및 집행 파일 업데이트일
+# ─────────────────────────────────────────────
+
 update_col1, update_col2 = st.columns(2)
+
 with update_col1:
     st.markdown("**예산내역 업데이트일:**")
+
     if budget_file is None:
         st.write("파일 미업로드")
     else:
         st.write(budget_update_date or "날짜 확인 불가")
+
 with update_col2:
     st.markdown("**집행내역 업데이트일:**")
+
     if execution_file is None:
         st.write("파일 미업로드")
     else:
         st.write(execution_update_date or "날짜 확인 불가")
 
+# ─────────────────────────────────────────────
+# 한국연구재단 월별제출자료 업로드 상태
+# ─────────────────────────────────────────────
+
+st.sidebar.markdown("---")
+st.sidebar.markdown("**한국연구재단 월별제출자료**")
+
+if nrf_monthly_file is None:
+    st.sidebar.caption("월별제출자료 파일 미업로드")
+else:
+    st.sidebar.success(
+        f"업로드 완료: {nrf_monthly_file.name}"
+    )
+
+# ─────────────────────────────────────────────
+# 필수 파일 확인
+# ─────────────────────────────────────────────
+
 if not budget_file or not execution_file:
+
     st.info(
         "예산 파일과 집행 파일을 모두 업로드해 주세요. "
         "예산 파일은 '예산내역' 시트를, 집행 파일은 전표의 "
@@ -380,8 +565,6 @@ if not budget_file or not execution_file:
     """)
 
     st.stop()
-
-
 # ─────────────────────────────────────────────
 # 예산 파일 읽기
 # ─────────────────────────────────────────────
@@ -1433,3 +1616,10 @@ st.download_button(
     file_name="예산대비집행_집계.csv",
     mime="text/csv"
 )
+
+# ─────────────────────────────────────────────
+# 한국연구재단 월별제출자료 (별도 엑셀)
+# ─────────────────────────────────────────────
+
+st.divider()
+render_nrf_monthly_table(nrf_monthly_file)
