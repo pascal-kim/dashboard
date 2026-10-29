@@ -90,26 +90,6 @@ st.markdown(
             color: #222222;
         }
 
-        /* KPI 카드: 흑백 인쇄 */
-        [data-testid="stMetric"] {
-            background: #f2f2f2 !important;
-            border: 1px solid #bdbdbd !important;
-            border-radius: 0 !important;
-            padding: 10px !important;
-            break-inside: avoid !important;
-            page-break-inside: avoid !important;
-        }
-
-        [data-testid="stMetricLabel"] {
-            color: #333333 !important;
-            font-size: 9pt !important;
-        }
-
-        [data-testid="stMetricValue"] {
-            color: #000000 !important;
-            font-size: 17pt !important;
-            font-weight: 700 !important;
-        }
 
         /* 차트: 컬러를 흑백으로 변환하고 페이지 분할 방지 */
         [data-testid="stPlotlyChart"],
