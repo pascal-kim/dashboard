@@ -68,6 +68,7 @@ st.markdown(
     unsafe_allow_html=True
 )
 
+
 # ─────────────────────────────────────────────
 # 프린터 최적화 CSS (A4 가로 / 컬러 유지)
 # ─────────────────────────────────────────────
@@ -80,14 +81,10 @@ st.markdown(
             size: A4 landscape;
             margin: 10mm;
         }
-
-        /* 컬러 인쇄 유지 */
         html, body, .stApp, [data-testid="stAppViewContainer"] {
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
         }
-
-        /* 인쇄 시 불필요한 UI 숨기기 */
         [data-testid="stSidebar"],
         [data-testid="stHeader"],
         [data-testid="stToolbar"],
@@ -98,8 +95,6 @@ st.markdown(
         button {
             display: none !important;
         }
-
-        /* 본문 너비 확보 */
         .main,
         [data-testid="stMain"],
         [data-testid="stMainBlockContainer"] {
@@ -108,14 +103,10 @@ st.markdown(
             padding: 0 !important;
             margin: 0 !important;
         }
-
-        /* 제목이 다음 표·그래프와 분리되는 현상 최소화 */
         h1, h2, h3, h4 {
             break-after: avoid !important;
             page-break-after: avoid !important;
         }
-
-        /* 표와 그래프가 페이지 중간에서 분할되는 현상 최소화 */
         [data-testid="stPlotlyChart"],
         [data-testid="stDataFrame"],
         [data-testid="stTable"],
@@ -124,32 +115,24 @@ st.markdown(
             break-inside: avoid !important;
             page-break-inside: avoid !important;
         }
-
-        /* 배경색과 테두리 유지 */
         [data-testid="stMetric"],
         [data-testid="stDataFrame"] {
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
         }
-
-        /* 표 테두리 보강 */
         table {
             border-collapse: collapse !important;
             width: 100% !important;
         }
-
         th, td {
             border: 1px solid #D0D9E8 !important;
         }
-
-        /* 링크 주소 등 불필요한 추가 출력 방지 */
-        a {
-            text-decoration: none !important;
-        }
+        a { text-decoration: none !important; }
     }
     </style>
     """,
-    unsafe_allow_html=True)
+    unsafe_allow_html=True
+)
 
 st.title("혁신지원사업 예산 대시보드")
 st.caption(
@@ -910,6 +893,17 @@ if not monthly.empty:
 
     monthly_display = monthly.rename(
         columns={"월": "집행월"}
+    ).copy()
+
+    # 표에만 합계 행 추가: 그래프에 사용하는 monthly 원본은 변경하지 않음
+    monthly_total = pd.DataFrame([{
+        "집행월": "합계",
+        "집행액": monthly_display["집행액"].sum(),
+        "누적집행액": monthly_display["누적집행액"].iloc[-1]
+    }])
+    monthly_display = pd.concat(
+        [monthly_display, monthly_total],
+        ignore_index=True
     )
 
     monthly_display = format_money_columns(
@@ -932,83 +926,62 @@ else:
     )
 
 
-
 # ─────────────────────────────────────────────
 # 2. 비목별 예산 구성 원그래프
 # ─────────────────────────────────────────────
 
 st.subheader("비목별 예산 구성")
 
-# 비목별 예산 집계
-nrf_budget_source = bf.copy()
+nrf_source = bf.copy()
 
-nrf_budget_source["비목별표시"] = (
-    nrf_budget_source["nrf"]
+nrf_source["비목별표시"] = (
+    nrf_source["nrf"]
     .replace("", "비목 미분류")
 )
 
 nrf_budget_summary = (
-    nrf_budget_source.groupby(
+    nrf_source.groupby(
         "비목별표시",
         as_index=False
     )["budget_amt"]
     .sum()
-    .rename(columns={"budget_amt": "비목별 예산액"})
+    .rename(columns={"budget_amt": "예산액"})
 )
 
-# 비목별 누적 집행액 집계
 nrf_execution_source = ef.copy()
-
 nrf_execution_source["비목별표시"] = (
-    nrf_execution_source["nrf"]
-    .replace("", "비목 미분류")
+    nrf_execution_source["nrf"].replace("", "비목 미분류")
 )
-
 nrf_execution_summary = (
     nrf_execution_source.groupby(
-        "비목별표시",
-        as_index=False
+        "비목별표시", as_index=False
     )["집행액"]
     .sum()
-    .rename(columns={"집행액": "비목누적집행액"})
+    .rename(columns={"집행액": "누적집행액"})
 )
 
-# 예산과 집행을 비목별로 연결
 nrf_summary = nrf_budget_summary.merge(
     nrf_execution_summary,
     on="비목별표시",
     how="left"
 )
-
-nrf_summary["비목누적집행액"] = (
-    nrf_summary["비목누적집행액"].fillna(0)
-)
-
-# 비목별 누적 집행률 계산
-nrf_summary["누적집행률(%)"] = nrf_summary.apply(
-    lambda r: (
-        r["비목누적집행액"] / r["비목별 예산액"] * 100
-        if r["비목별 예산액"] != 0
-        else 0
-    ),
+nrf_summary["누적집행액"] = nrf_summary["누적집행액"].fillna(0)
+nrf_summary["잔액"] = nrf_summary["예산액"] - nrf_summary["누적집행액"]
+nrf_summary["집행률(%)"] = nrf_summary.apply(
+    lambda r: r["누적집행액"] / r["예산액"] * 100 if r["예산액"] else 0,
     axis=1
 )
-
-nrf_summary = nrf_summary.sort_values(
-    "비목별 예산액",
-    ascending=False
-)
+nrf_summary = nrf_summary.sort_values("예산액", ascending=False)
 
 if not nrf_summary.empty:
-
-    # 원그래프와 표를 좌우로 배치
+    # 원그래프와 표를 좌우로 배치. 합계 행은 표에만 추가하고 그래프 데이터는 유지.
     pie_col, table_col = st.columns([1, 1.25], gap="medium")
 
     with pie_col:
         fig = px.pie(
             nrf_summary,
             names="비목별표시",
-            values="비목별 예산액",
+            values="예산액",
             title="전체 예산 중 비목별 구성 비율",
             color_discrete_sequence=BLUE_PALETTE
         )
@@ -1018,7 +991,8 @@ if not nrf_summary.empty:
             texttemplate="%{label}<br>%{percent}",
             hovertemplate=(
                 "%{label}<br>"
-                "예산액: %{value:,.0f}원"
+                "예산액: %{value:,.0f}원<br>"
+                "구성 비율: %{percent}"
                 "<extra></extra>"
             )
         )
@@ -1026,65 +1000,52 @@ if not nrf_summary.empty:
         fig.update_layout(
             legend_title_text="한국연구재단비목",
             title_font_color=COLOR_TITLE,
+            title_font_size=16,
             paper_bgcolor="white",
             margin=dict(l=10, r=10, t=60, b=10)
         )
 
-        st.plotly_chart(
-            fig,
-            use_container_width=True
-        )
+        st.plotly_chart(fig, use_container_width=True)
 
     with table_col:
-        st.markdown("#### 비목별 예산 및 집행 현황")
-
-        nrf_display = nrf_summary[
-            [
-                "비목별표시",
-                "비목별 예산액",
-                "비목누적집행액",
-                "누적집행률(%)"
-            ]
-        ].copy()
-
-        nrf_display = nrf_display.rename(
-            columns={
-                "비목별표시": "한국연구재단비목"
-            }
+        st.markdown(
+            "<div style='font-size:16px; font-weight:600; color:#111D37; "
+            "line-height:1.2; margin:0 0 0.8rem 0;'>비목별 예산 및 집행 현황</div>",
+            unsafe_allow_html=True
         )
+        nrf_display = nrf_summary[[
+            "비목별표시", "예산액", "누적집행액", "잔액", "집행률(%)"
+        ]].copy()
+        nrf_display = nrf_display.rename(columns={"비목별표시": "한국연구재단비목"})
 
+        nrf_total_budget = nrf_summary["예산액"].sum()
+        nrf_total_execution = nrf_summary["누적집행액"].sum()
+        nrf_total = pd.DataFrame([{
+            "한국연구재단비목": "합계",
+            "예산액": nrf_total_budget,
+            "누적집행액": nrf_total_execution,
+            "잔액": nrf_total_budget - nrf_total_execution,
+            "집행률(%)": nrf_total_execution / nrf_total_budget * 100 if nrf_total_budget else 0
+        }])
+        nrf_display = pd.concat([nrf_display, nrf_total], ignore_index=True)
         nrf_display = format_money_columns(
             nrf_display,
-            ["비목별 예산액", "비목누적집행액"]
+            ["예산액", "누적집행액", "잔액"]
         )
-
-        nrf_display["누적집행률(%)"] = (
-            nrf_display["누적집행률(%)"].map(
-                lambda x: f"{x:.1f}%"
-            )
-        )
+        nrf_display["집행률(%)"] = nrf_display["집행률(%)"].map(lambda x: f"{x:.1f}%")
 
         st.dataframe(
             right_align_columns(
                 nrf_display,
-                [
-                    "비목별 예산액",
-                    "비목누적집행액",
-                    "누적집행률(%)"
-                ]
+                ["예산액", "누적집행액", "잔액", "집행률(%)"]
             ),
             use_container_width=True,
             hide_index=True,
-            height=min(
-                max(180, 35 * (len(nrf_display) + 1) + 3),
-                20000
-            )
+            height=min(max(180, 35 * (len(nrf_display) + 1) + 3), 20000)
         )
 
 else:
-    st.info("표시할 비목별 예산 자료가 없습니다.")
-
-
+    st.info("표시할 비목별 예산이 없습니다.")
 
 
 # ─────────────────────────────────────────────
@@ -1093,13 +1054,8 @@ else:
 
 st.subheader("부서별 예산 대비 집행")
 
-# 부서별 예산·집행·잔액 집계
 dept_summary = (
-    summary[
-        summary["부서명"].notna()
-        & (summary["부서명"].astype(str).str.strip() != "")
-    ]
-    .groupby(
+    summary.groupby(
         "부서명",
         as_index=False
     )[["예산액", "누적집행액", "잔액"]]
@@ -1107,19 +1063,13 @@ dept_summary = (
     .sort_values("예산액", ascending=False)
 )
 
-# 부서별 집행률 계산
 dept_summary["집행률(%)"] = dept_summary.apply(
-    lambda r: (
-        r["누적집행액"] / r["예산액"] * 100
-        if r["예산액"] != 0
-        else 0
-    ),
+    lambda r: r["누적집행액"] / r["예산액"] * 100 if r["예산액"] else 0,
     axis=1
 )
 
 if not dept_summary.empty:
-
-    # 그래프는 기존대로 예산액 상위 15개 부서만 표시
+    # 그래프는 예산액 상위 15개 부서만 표시
     dept_chart = dept_summary.head(15).copy()
 
     dept_long = dept_chart.melt(
@@ -1164,48 +1114,31 @@ if not dept_summary.empty:
 
     st.plotly_chart(fig, use_container_width=True)
 
-    # 표는 상위 15개가 아니라 전체 부서 표시
-    dept_display = dept_summary[
-        [
-            "부서명",
-            "예산액",
-            "누적집행액",
-            "잔액",
-            "집행률(%)"
-        ]
-    ].copy()
-
+    dept_display = dept_summary.copy()
+    dept_total_budget = dept_summary["예산액"].sum()
+    dept_total_execution = dept_summary["누적집행액"].sum()
+    dept_total = pd.DataFrame([{
+        "부서명": "합계",
+        "예산액": dept_total_budget,
+        "누적집행액": dept_total_execution,
+        "잔액": dept_summary["잔액"].sum(),
+        "집행률(%)": dept_total_execution / dept_total_budget * 100 if dept_total_budget else 0
+    }])
+    dept_display = pd.concat([dept_display, dept_total], ignore_index=True)
     dept_display = format_money_columns(
         dept_display,
         ["예산액", "누적집행액", "잔액"]
     )
-
-    dept_display["집행률(%)"] = (
-        dept_display["집행률(%)"].map(
-            lambda x: f"{x:.1f}%"
-        )
-    )
-
-    # 전체 행 수에 맞춰 표 높이 지정
-    # 행이 많아도 표 내부의 세로 스크롤 없이 전체 행 표시
-    dept_table_height = max(
-        120,
-        35 * (len(dept_display) + 1) + 3
-    )
+    dept_display["집행률(%)"] = dept_display["집행률(%)"].map(lambda x: f"{x:.1f}%")
 
     st.dataframe(
         right_align_columns(
             dept_display,
-            [
-                "예산액",
-                "누적집행액",
-                "잔액",
-                "집행률(%)"
-            ]
+            ["예산액", "누적집행액", "잔액", "집행률(%)"]
         ),
         use_container_width=True,
         hide_index=True,
-        height=dept_table_height
+        height=min(max(120, 35 * (len(dept_display) + 1) + 3), 20000)
     )
 
 else:
@@ -1234,19 +1167,27 @@ area_summary["집행률(%)"] = area_summary.apply(
     axis=1
 )
 
+area_display = area_summary.copy()
+area_total_budget = area_summary["예산액"].sum()
+area_total_execution = area_summary["누적집행액"].sum()
+area_total = pd.DataFrame([{
+    "영역구분": "합계",
+    "예산액": area_total_budget,
+    "누적집행액": area_total_execution,
+    "잔액": area_summary["잔액"].sum(),
+    "집행률(%)": area_total_execution / area_total_budget * 100 if area_total_budget else 0
+}])
+area_display = pd.concat([area_display, area_total], ignore_index=True)
 area_display = format_money_columns(
-    area_summary,
+    area_display,
     ["예산액", "누적집행액", "잔액"]
 )
-
-area_display["집행률(%)"] = area_display["집행률(%)"].map(
-    lambda x: f"{x:.1f}%"
-)
+area_display["집행률(%)"] = area_display["집행률(%)"].map(lambda x: f"{x:.1f}%")
 
 st.dataframe(
     right_align_columns(
         area_display,
-        ["예산액", "누적집행액", "잔액"]
+        ["예산액", "누적집행액", "잔액", "집행률(%)"]
     ),
     use_container_width=True,
     hide_index=True
@@ -1320,13 +1261,26 @@ summary_display = (
     .copy()
 )
 
+summary_total_budget = summary["예산액"].sum()
+summary_total_execution = summary["누적집행액"].sum()
+summary_total_row = {col: "" for col in show_cols}
+summary_total_row.update({
+    "영역구분": "합계",
+    "예산액": summary_total_budget,
+    "누적집행액": summary_total_execution,
+    "잔액": summary["잔액"].sum(),
+    "집행률(%)": summary_total_execution / summary_total_budget * 100 if summary_total_budget else 0
+})
+summary_display = pd.concat(
+    [summary_display, pd.DataFrame([summary_total_row])],
+    ignore_index=True
+)
 summary_display = format_money_columns(
     summary_display,
     ["예산액", "누적집행액", "잔액"]
 )
-
 summary_display["집행률(%)"] = summary_display["집행률(%)"].map(
-    lambda x: f"{x:.1f}%"
+    lambda x: f"{float(x):.1f}%" if pd.notna(x) and str(x).strip() != "" else ""
 )
 
 st.dataframe(
@@ -1374,12 +1328,15 @@ detail = (
     .copy()
 )
 
+detail_total_row = {col: "" for col in detail.columns}
+detail_total_row["지출 부서"] = "합계"
+detail_total_row["원본 금액"] = pd.to_numeric(detail["원본 금액"], errors="coerce").sum()
+detail = pd.concat([detail, pd.DataFrame([detail_total_row])], ignore_index=True)
 detail = format_money_columns(
     detail,
     ["원본 금액"]
 )
-
-detail["전기일"] = detail["전기일"].dt.strftime("%Y-%m-%d")
+detail["전기일"] = pd.to_datetime(detail["전기일"], errors="coerce").dt.strftime("%Y-%m-%d").fillna("")
 
 st.dataframe(
     right_align_columns(
@@ -1432,8 +1389,17 @@ with st.expander("미연결 집행 내역 확인"):
         unmatched["_merge"] == "left_only"
     ].drop(columns="_merge")
 
+    unmatched_display = unmatched.copy()
+    unmatched_total_row = {col: "" for col in unmatched_display.columns}
+    if "dept_key" in unmatched_display.columns:
+        unmatched_total_row["dept_key"] = "합계"
+    unmatched_total_row["누적집행액"] = unmatched_display["누적집행액"].sum() if "누적집행액" in unmatched_display.columns else 0
+    unmatched_display = pd.concat(
+        [unmatched_display, pd.DataFrame([unmatched_total_row])],
+        ignore_index=True
+    )
     unmatched_display = format_money_columns(
-        unmatched,
+        unmatched_display,
         ["누적집행액"]
     )
 
