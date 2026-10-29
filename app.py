@@ -44,16 +44,8 @@ st.markdown(
     background-color: {COLOR_BACKGROUND};
     padding: 14px;
     border-radius: 8px;
-
-    /* 모든 요약 박스의 높이 통일 */
-    height: 112px;
-    min-height: 112px;
+    height: 100px;
     box-sizing: border-box;
-
-    /* 내부 내용 정렬 */
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
 }}
 
     [data-testid="stMetricLabel"] {{
