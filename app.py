@@ -1620,12 +1620,11 @@ st.download_button(
 
 # ─────────────────────────────────────────────
 # 한국연구재단 월별제출자료
-# 병합 셀 유지 + 백만원 단위 표시
+# 병합 셀 유지 + 숫자 오른쪽 정렬 + 백만원 단위 표시
 # ─────────────────────────────────────────────
 
 import html
 import openpyxl
-from openpyxl.utils import get_column_letter
 from numbers import Number
 
 st.divider()
@@ -1639,7 +1638,6 @@ if nrf_monthly_file is None:
 
 else:
     try:
-        # 업로드한 엑셀 파일 읽기
         nrf_monthly_file.seek(0)
 
         wb = openpyxl.load_workbook(
@@ -1649,10 +1647,9 @@ else:
 
         ws = wb[wb.sheetnames[0]]
 
-        # ─────────────────────────────────────────
-        # 병합 셀 위치 기록
-        # ─────────────────────────────────────────
-
+        # ─────────────────────────────────────
+        # 병합 셀의 시작 위치와 범위 기록
+        # ─────────────────────────────────────
         merged_map = {}
         merged_anchors = {}
 
@@ -1667,107 +1664,93 @@ else:
                 "colspan": c2 - c1 + 1,
             }
 
-            for row_idx in range(r1, r2 + 1):
-                for col_idx in range(c1, c2 + 1):
-                    merged_map[(row_idx, col_idx)] = (r1, c1)
+            for r in range(r1, r2 + 1):
+                for c in range(c1, c2 + 1):
+                    merged_map[(r, c)] = (r1, c1)
 
-        # ─────────────────────────────────────────
-        # 표 위 단위 표시
-        # 이 월별제출자료 표에만 적용
-        # ─────────────────────────────────────────
-
-        st.markdown(
-            """
-            <div style="
-                text-align: right;
-                font-size: 13px;
-                margin-bottom: 6px;
-            ">
-                (단위: 백만원)
-            </div>
-            """,
-            unsafe_allow_html=True
+        # ─────────────────────────────────────
+        # 표 스타일
+        # ─────────────────────────────────────
+        table_style = (
+            "border-collapse: collapse;"
+            "width: 100%;"
+            "table-layout: auto;"
+            "font-family: inherit;"
+            "font-size: 14px;"
+            "color: inherit;"
         )
 
-        # ─────────────────────────────────────────
-        # 기존 대시보드 표와 통일된 기본 서식
-        # ─────────────────────────────────────────
+        # 일반 텍스트 셀: 가운데 정렬
+        cell_style = (
+            "border: 1px solid #DDDDDD;"
+            "padding: 8px 10px;"
+            "text-align: center;"
+            "vertical-align: middle;"
+            "overflow-wrap: anywhere;"
+        )
 
-        table_style = """
-            border-collapse: collapse;
-            width: max-content;
-            min-width: 100%;
-            table-layout: auto;
-            font-family: inherit;
-            font-size: 14px;
-            color: inherit;
-        """
+        # 숫자 셀: 오른쪽 정렬
+        number_style = (
+            "border: 1px solid #DDDDDD;"
+            "padding: 8px 10px;"
+            "text-align: right;"
+            "vertical-align: middle;"
+            "white-space: nowrap;"
+        )
 
-        cell_style = """
-            border: 1px solid #DDDDDD;
-            padding: 8px 10px;
-            text-align: center;
-            vertical-align: middle;
-            overflow-wrap: anywhere;
-        """
+        # 상단 헤더 셀
+        header_style = (
+            "border: 1px solid #DDDDDD;"
+            "padding: 8px 10px;"
+            "text-align: center;"
+            "vertical-align: middle;"
+            "font-weight: 600;"
+            "background-color: #F0F2F6;"
+            "color: #262730;"
+            "overflow-wrap: anywhere;"
+        )
 
-        header_style = """
-            border: 1px solid #DDDDDD;
-            padding: 8px 10px;
-            text-align: center;
-            vertical-align: middle;
-            font-weight: 600;
-            background-color: #F0F2F6;
-            color: #262730;
-            overflow-wrap: anywhere;
-        """
-
-        # ─────────────────────────────────────────
-        # HTML 표 생성
-        # ─────────────────────────────────────────
-
+        # ─────────────────────────────────────
+        # HTML 표 시작
+        # ─────────────────────────────────────
         html_parts = [
             '<div style="width:100%; overflow-x:auto;">',
             f'<table style="{table_style}">',
             "<tbody>"
         ]
 
-        for row_idx in range(1, ws.max_row + 1):
-
+        # ─────────────────────────────────────
+        # 엑셀 행과 열 출력
+        # ─────────────────────────────────────
+        for r in range(1, ws.max_row + 1):
             html_parts.append("<tr>")
 
-            for col_idx in range(1, ws.max_column + 1):
+            for c in range(1, ws.max_column + 1):
 
-                # 병합 셀의 시작 셀이 아닌 경우 건너뛰기
-                anchor = merged_map.get(
-                    (row_idx, col_idx)
-                )
+                # 병합 셀 내부는 출력하지 않음
+                anchor = merged_map.get((r, c))
 
-                if anchor is not None and anchor != (
-                    row_idx, col_idx
-                ):
+                if anchor is not None and anchor != (r, c):
                     continue
 
-                cell = ws.cell(row_idx, col_idx)
-                value = cell.value
+                value = ws.cell(r, c).value
 
-                # ─────────────────────────────────
-                # 값 처리
-                # 백만원 변환은 숫자 셀에만 적용
-                # ─────────────────────────────────
+                # ─────────────────────────────
+                # 셀 값 및 숫자 변환
+                # ─────────────────────────────
+                is_number = (
+                    isinstance(value, Number)
+                    and not isinstance(value, bool)
+                )
 
                 if value is None:
                     text = ""
 
-                elif (
-                    isinstance(value, Number)
-                    and not isinstance(value, bool)
-                ):
-                    converted_value = round(
-                        float(value) / 1_000_000,
-                        1
-                    )
+                elif is_number:
+                    # 원 단위 → 백만원 단위
+                    converted_value = float(value) / 1_000_000
 
+                    # 소수점 첫째 자리까지 표시
                     text = f"{converted_value:,.1f}"
 
                 else:
@@ -1775,74 +1758,70 @@ else:
                         str(value)
                     ).replace("\n", "<br>")
 
-                # ─────────────────────────────────
-                # 병합 셀 속성 적용
-                # ─────────────────────────────────
-
+                # ─────────────────────────────
+                # 병합 범위 적용
+                # ─────────────────────────────
                 merge_attrs = ""
 
-                if (row_idx, col_idx) in merged_anchors:
-                    merge_info = merged_anchors[
-                        (row_idx, col_idx)
-                    ]
+                if (r, c) in merged_anchors:
+                    info = merged_anchors[(r, c)]
 
-                    if merge_info["rowspan"] > 1:
+                    if info["rowspan"] > 1:
                         merge_attrs += (
-                            f' rowspan="{merge_info["rowspan"]}"'
+                            f' rowspan="{info["rowspan"]}"'
                         )
 
-                    if merge_info["colspan"] > 1:
+                    if info["colspan"] > 1:
                         merge_attrs += (
-                            f' colspan="{merge_info["colspan"]}"'
+                            f' colspan="{info["colspan"]}"'
                         )
 
-            # 셀 정렬 및 스타일 설정
-            if row_idx <= 5:
-                style = header_style
+                # ─────────────────────────────
+                # 셀 스타일 결정
+                # ─────────────────────────────
+                if r <= 5:
+                    # 상단 5행은 헤더
+                    style = header_style
 
-            elif isinstance(value, Number) and not isinstance(value, bool):
-                # 숫자 셀은 오른쪽 정렬
-                style = (
-                    "border: 1px solid #DDDDDD;"
-                    "padding: 8px 10px;"
-                    "text-align: right;"
-                    "vertical-align: middle;"
-                    "overflow-wrap: anywhere;"
+                elif is_number:
+                    # 숫자 셀은 오른쪽 정렬
+                    style = number_style
+
+                else:
+                    # 일반 텍스트 셀은 가운데 정렬
+                    style = cell_style
+
+                # 셀 추가
+                html_parts.append(
+                    f'<td{merge_attrs} style="{style}">{text}</td>'
                 )
-
-            else:
-                style = cell_style
-
-            html_parts.append(
-                f'<td{merge_attrs} style="{style}">{text}</td>'
-            )
 
             html_parts.append("</tr>")
 
+        # ─────────────────────────────────────
+        # HTML 표 종료 및 화면 표시
+        # ─────────────────────────────────────
         html_parts.extend([
             "</tbody>",
             "</table>",
             "</div>"
         ])
 
-        # ─────────────────────────────────────────
-        # 표 출력
-        # ─────────────────────────────────────────
-
         st.markdown(
             "".join(html_parts),
             unsafe_allow_html=True
         )
 
+        # 원본 파일명 표시
         st.caption(
             f"원본 파일: {nrf_monthly_file.name}"
-            " | 병합 셀 유지 · 백만원 단위 표시"
+            " | 병합 셀 유지 · 숫자 오른쪽 정렬"
+            " · 백만원 단위 표시"
         )
 
-        # ─────────────────────────────────────────
+        # ─────────────────────────────────────
         # 원본 엑셀 다운로드
-        # ─────────────────────────────────────────
-
+        # ─────────────────────────────────────
         nrf_monthly_file.seek(0)
 
         st.download_button(
@@ -1858,6 +1837,6 @@ else:
 
     except Exception as e:
         st.error(
-            "한국연구재단 월별제출자료 표시 중 오류가 발생했습니다."
+            "월별제출자료를 표시하는 중 오류가 발생했습니다."
         )
         st.exception(e)
