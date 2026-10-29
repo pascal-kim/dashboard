@@ -4,7 +4,7 @@ import plotly.express as px
 import re
 
 st.set_page_config(
-    page_title="연세대학교(미래) 혁신지원사업 예산 대비 집행 대시보드",
+    page_title="MIRAE Innovation support",
     page_icon="📊",
     layout="wide"
 )
@@ -67,7 +67,7 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-st.title("사업예산 대비 집행 대시보드")
+st.title("연세대(미래) 혁신지원사업예산 대비 집행 대시보드")
 st.caption(
     "예산 파일과 집행 파일을 함께 올리면 "
     "월별 집행액·예산 대비 집행률을 확인할 수 있습니다."
