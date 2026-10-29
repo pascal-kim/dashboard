@@ -1796,25 +1796,22 @@ else:
                             f' colspan="{merge_info["colspan"]}"'
                         )
 
-                # 상단 5행은 제목 영역으로 표시
-               if row_idx <= 5:
-    style = header_style
+            # 셀 정렬 및 스타일 설정
+            if row_idx <= 5:
+                style = header_style
 
-elif (
-    isinstance(value, (int, float))
-    and not isinstance(value, bool)
-):
-    # 숫자 셀만 오른쪽 정렬
-    style = """
-        border: 1px solid #DDDDDD;
-        padding: 8px 10px;
-        text-align: right;
-        vertical-align: middle;
-        overflow-wrap: anywhere;
-    """
+            elif isinstance(value, Number) and not isinstance(value, bool):
+                # 숫자 셀은 오른쪽 정렬
+                style = (
+                    "border: 1px solid #DDDDDD;"
+                    "padding: 8px 10px;"
+                    "text-align: right;"
+                    "vertical-align: middle;"
+                    "overflow-wrap: anywhere;"
+                )
 
-else:
-    style = cell_style
+            else:
+                style = cell_style
 
                 html_parts.append(
                     f'<td{merge_attrs} style="{style}">'
