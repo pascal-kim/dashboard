@@ -68,6 +68,89 @@ st.markdown(
     unsafe_allow_html=True
 )
 
+# ─────────────────────────────────────────────
+# 프린터 최적화 CSS (A4 가로 / 컬러 유지)
+# ─────────────────────────────────────────────
+
+st.markdown(
+    """
+    <style>
+    @media print {
+        @page {
+            size: A4 landscape;
+            margin: 10mm;
+        }
+
+        /* 컬러 인쇄 유지 */
+        html, body, .stApp, [data-testid="stAppViewContainer"] {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+
+        /* 인쇄 시 불필요한 UI 숨기기 */
+        [data-testid="stSidebar"],
+        [data-testid="stHeader"],
+        [data-testid="stToolbar"],
+        [data-testid="stDecoration"],
+        [data-testid="stStatusWidget"],
+        [data-testid="stFileUploader"],
+        [data-testid="stDownloadButton"],
+        button {
+            display: none !important;
+        }
+
+        /* 본문 너비 확보 */
+        .main,
+        [data-testid="stMain"],
+        [data-testid="stMainBlockContainer"] {
+            width: 100% !important;
+            max-width: 100% !important;
+            padding: 0 !important;
+            margin: 0 !important;
+        }
+
+        /* 제목이 다음 표·그래프와 분리되는 현상 최소화 */
+        h1, h2, h3, h4 {
+            break-after: avoid !important;
+            page-break-after: avoid !important;
+        }
+
+        /* 표와 그래프가 페이지 중간에서 분할되는 현상 최소화 */
+        [data-testid="stPlotlyChart"],
+        [data-testid="stDataFrame"],
+        [data-testid="stTable"],
+        [data-testid="stMetric"],
+        .element-container {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+        }
+
+        /* 배경색과 테두리 유지 */
+        [data-testid="stMetric"],
+        [data-testid="stDataFrame"] {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+
+        /* 표 테두리 보강 */
+        table {
+            border-collapse: collapse !important;
+            width: 100% !important;
+        }
+
+        th, td {
+            border: 1px solid #D0D9E8 !important;
+        }
+
+        /* 링크 주소 등 불필요한 추가 출력 방지 */
+        a {
+            text-decoration: none !important;
+        }
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+
 st.title("혁신지원사업 예산 대시보드")
 st.caption(
     "예산 파일과 집행 파일을 함께 올리면 "
