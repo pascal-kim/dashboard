@@ -849,34 +849,80 @@ else:
     )
 
 
+
 # ─────────────────────────────────────────────
 # 2. 비목별 예산 구성 원그래프
 # ─────────────────────────────────────────────
 
 st.subheader("비목별 예산 구성")
 
-nrf_source = bf.copy()
+# 비목별 예산 집계
+nrf_budget_source = bf.copy()
 
-nrf_source["비목별표시"] = (
-    nrf_source["nrf"]
+nrf_budget_source["비목별표시"] = (
+    nrf_budget_source["nrf"]
     .replace("", "비목 미분류")
 )
 
-nrf_summary = (
-    nrf_source.groupby(
+nrf_budget_summary = (
+    nrf_budget_source.groupby(
         "비목별표시",
         as_index=False
     )["budget_amt"]
     .sum()
-    .rename(columns={"budget_amt": "예산액"})
-    .sort_values("예산액", ascending=False)
+    .rename(columns={"budget_amt": "비목별 예산액"})
+)
+
+# 비목별 누적 집행액 집계
+nrf_execution_source = ef.copy()
+
+nrf_execution_source["비목별표시"] = (
+    nrf_execution_source["nrf"]
+    .replace("", "비목 미분류")
+)
+
+nrf_execution_summary = (
+    nrf_execution_source.groupby(
+        "비목별표시",
+        as_index=False
+    )["집행액"]
+    .sum()
+    .rename(columns={"집행액": "비목누적집행액"})
+)
+
+# 예산과 집행을 비목별로 연결
+nrf_summary = nrf_budget_summary.merge(
+    nrf_execution_summary,
+    on="비목별표시",
+    how="left"
+)
+
+nrf_summary["비목누적집행액"] = (
+    nrf_summary["비목누적집행액"].fillna(0)
+)
+
+# 비목별 누적 집행률 계산
+nrf_summary["누적집행률(%)"] = nrf_summary.apply(
+    lambda r: (
+        r["비목누적집행액"] / r["비목별 예산액"] * 100
+        if r["비목별 예산액"] != 0
+        else 0
+    ),
+    axis=1
+)
+
+nrf_summary = nrf_summary.sort_values(
+    "비목별 예산액",
+    ascending=False
 )
 
 if not nrf_summary.empty:
+
+    # 원그래프는 기존 색상 팔레트 유지
     fig = px.pie(
         nrf_summary,
         names="비목별표시",
-        values="예산액",
+        values="비목별 예산액",
         title="전체 예산 중 비목별 구성 비율",
         color_discrete_sequence=BLUE_PALETTE
     )
@@ -886,8 +932,7 @@ if not nrf_summary.empty:
         texttemplate="%{label}<br>%{percent}",
         hovertemplate=(
             "%{label}<br>"
-            "예산액: %{value:,.0f}원<br>"
-            "구성 비율: %{percent}"
+            "예산액: %{value:,.0f}원"
             "<extra></extra>"
         )
     )
@@ -900,22 +945,51 @@ if not nrf_summary.empty:
 
     st.plotly_chart(fig, use_container_width=True)
 
+    # 비목별 집계표
+    nrf_display = nrf_summary[
+        [
+            "비목별표시",
+            "비목별 예산액",
+            "비목누적집행액",
+            "누적집행률(%)"
+        ]
+    ].copy()
+
+    nrf_display = nrf_display.rename(
+        columns={"비목별표시": "한국연구재단비목"}
+    )
+
     nrf_display = format_money_columns(
-        nrf_summary,
-        ["예산액"]
+        nrf_display,
+        ["비목별 예산액", "비목누적집행액"]
+    )
+
+    nrf_display["누적집행률(%)"] = (
+        nrf_display["누적집행률(%)"].map(
+            lambda x: f"{x:.1f}%"
+        )
     )
 
     st.dataframe(
         right_align_columns(
             nrf_display,
-            ["예산액"]
+            [
+                "비목별 예산액",
+                "비목누적집행액",
+                "누적집행률(%)"
+            ]
         ),
         use_container_width=True,
-        hide_index=True
+        hide_index=True,
+        height=min(
+            max(120, 35 * (len(nrf_display) + 1) + 3),
+            20000
+        )
     )
 
 else:
-    st.info("표시할 비목별 예산이 없습니다.")
+    st.info("표시할 비목별 예산 자료가 없습니다.")
+
 
 
 # ─────────────────────────────────────────────
@@ -924,8 +998,13 @@ else:
 
 st.subheader("부서별 예산 대비 집행")
 
+# 부서별 예산·집행·잔액 집계
 dept_summary = (
-    summary.groupby(
+    summary[
+        summary["부서명"].notna()
+        & (summary["부서명"].astype(str).str.strip() != "")
+    ]
+    .groupby(
         "부서명",
         as_index=False
     )[["예산액", "누적집행액", "잔액"]]
@@ -933,8 +1012,19 @@ dept_summary = (
     .sort_values("예산액", ascending=False)
 )
 
+# 부서별 집행률 계산
+dept_summary["집행률(%)"] = dept_summary.apply(
+    lambda r: (
+        r["누적집행액"] / r["예산액"] * 100
+        if r["예산액"] != 0
+        else 0
+    ),
+    axis=1
+)
+
 if not dept_summary.empty:
-    # 그래프는 예산액 상위 15개 부서만 표시
+
+    # 그래프는 기존대로 예산액 상위 15개 부서만 표시
     dept_chart = dept_summary.head(15).copy()
 
     dept_long = dept_chart.melt(
@@ -979,18 +1069,48 @@ if not dept_summary.empty:
 
     st.plotly_chart(fig, use_container_width=True)
 
+    # 표는 상위 15개가 아니라 전체 부서 표시
+    dept_display = dept_summary[
+        [
+            "부서명",
+            "예산액",
+            "누적집행액",
+            "잔액",
+            "집행률(%)"
+        ]
+    ].copy()
+
     dept_display = format_money_columns(
-        dept_summary,
+        dept_display,
         ["예산액", "누적집행액", "잔액"]
+    )
+
+    dept_display["집행률(%)"] = (
+        dept_display["집행률(%)"].map(
+            lambda x: f"{x:.1f}%"
+        )
+    )
+
+    # 전체 행 수에 맞춰 표 높이 지정
+    # 행이 많아도 표 내부의 세로 스크롤 없이 전체 행 표시
+    dept_table_height = max(
+        120,
+        35 * (len(dept_display) + 1) + 3
     )
 
     st.dataframe(
         right_align_columns(
             dept_display,
-            ["예산액", "누적집행액", "잔액"]
+            [
+                "예산액",
+                "누적집행액",
+                "잔액",
+                "집행률(%)"
+            ]
         ),
         use_container_width=True,
-        hide_index=True
+        hide_index=True,
+        height=dept_table_height
     )
 
 else:
