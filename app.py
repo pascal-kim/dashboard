@@ -811,8 +811,20 @@ else:
 
 st.subheader("부서별 예산 대비 집행")
 
+# 부서명이 비어 있는 행 제거 후 부서별 집계
+summary_for_dept = summary.copy()
+summary_for_dept["부서명"] = (
+    summary_for_dept["부서명"]
+    .fillna("")
+    .astype(str)
+    .str.strip()
+)
+summary_for_dept = summary_for_dept[
+    summary_for_dept["부서명"] != ""
+].copy()
+
 dept_summary = (
-    summary.groupby(
+    summary_for_dept.groupby(
         "부서명",
         as_index=False
     )[["예산액", "누적집행액", "잔액"]]
@@ -820,9 +832,18 @@ dept_summary = (
     .sort_values("예산액", ascending=False)
 )
 
+# 집행률 계산: 누적집행액 / 예산액 × 100
+dept_summary["집행률(%)"] = (
+    dept_summary["누적집행액"]
+    .div(dept_summary["예산액"].where(dept_summary["예산액"] != 0))
+    .mul(100)
+    .fillna(0)
+)
+
 if not dept_summary.empty:
-    # 대시보드에서도 모든 부서를 표시
-    dept_chart = dept_summary.copy()
+
+    # 그래프는 예산액 상위 15개 부서만 표시
+    dept_chart = dept_summary.head(15).copy()
 
     dept_long = dept_chart.melt(
         id_vars="부서명",
@@ -837,10 +858,10 @@ if not dept_summary.empty:
         y="금액",
         color="구분",
         barmode="group",
-        title="부서별 예산·누적집행 비교 (전체 부서)",
+        title="부서별 예산·누적집행 비교 (예산액 상위 15개)",
         color_discrete_map={
-            "예산액": "#9B59B6",
-            "누적집행액": "#E67E22"
+            "예산액": COLOR_BUDGET,
+            "누적집행액": COLOR_EXECUTION
         }
     )
 
@@ -857,46 +878,42 @@ if not dept_summary.empty:
     fig.update_layout(
         xaxis_title="부서",
         yaxis_title="금액(원)",
-        xaxis_tickangle=-45,
+        xaxis_tickangle=-35,
         legend_title_text="구분",
-        # 부서 수에 맞춰 그래프 높이를 늘려 모든 부서가 보이도록 설정
-        height=max(500, min(1600, 320 + len(dept_chart) * 32)),
-        margin=dict(b=110, t=70, l=50, r=30),
+        title_font_color=COLOR_TITLE,
+        plot_bgcolor="white",
+        paper_bgcolor="white"
     )
 
     st.plotly_chart(fig, use_container_width=True)
 
+    # 표 금액 서식 적용
     dept_display = format_money_columns(
         dept_summary,
         ["예산액", "누적집행액", "잔액"]
     )
 
-    # 부서별 표는 모든 행을 한 번에 볼 수 있도록 행 수에 맞춰 높이 지정
-    dept_table_height = max(100, (len(dept_display) + 1) * 38 + 8)
+    # 집행률을 백분율로 표시
+    dept_display["집행률(%)"] = dept_summary["집행률(%)"].map(
+        lambda x: f"{x:.1f}%"
+    )
+
+    # 표 열 순서: 집행률을 맨 오른쪽에 배치
+    dept_display = dept_display[
+        ["부서명", "예산액", "누적집행액", "잔액", "집행률(%)"]
+    ]
 
     st.dataframe(
-        align_table(dept_display),
+        right_align_columns(
+            dept_display,
+            ["예산액", "누적집행액", "잔액", "집행률(%)"]
+        ),
         use_container_width=True,
         hide_index=True,
-        height=dept_table_height,
-        column_config={
-            "부서명": st.column_config.TextColumn(
-                "부서명",
-                width="large"
-            ),
-            "예산액": st.column_config.TextColumn(
-                "예산액",
-                width="medium"
-            ),
-            "누적집행액": st.column_config.TextColumn(
-                "누적집행액",
-                width="medium"
-            ),
-            "잔액": st.column_config.TextColumn(
-                "잔액",
-                width="medium"
-            ),
-        },
+        height=min(
+            max(120, 35 * (len(dept_display) + 1) + 3),
+            20000
+        )
     )
 
 else:
