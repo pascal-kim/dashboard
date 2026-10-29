@@ -4,7 +4,7 @@ import plotly.express as px
 import re
 
 st.set_page_config(
-    page_title="사업예산 대비 집행 대시보드",
+    page_title="연세대학교(미래) 혁신지원사업 예산 대비 집행 대시보드",
     page_icon="📊",
     layout="wide"
 )
@@ -225,17 +225,42 @@ def is_numeric(x):
         return False
 
 
-def right_align_columns(df, columns):
-    """지정한 금액 열을 오른쪽 정렬."""
-    cols = [col for col in columns if col in df.columns]
+def right_align_columns(df, columns=None):
+    """문자형 셀은 가운데, 숫자형 셀은 오른쪽 정렬"""
 
-    if not cols:
-        return df
+    import pandas as pd
 
-    return df.style.set_properties(
-        subset=cols,
-        **{"text-align": "right"}
-    )
+    result = df.copy()
+    styles = []
+
+    for col_idx, col in enumerate(result.columns):
+        def align_value(value):
+            if pd.isna(value):
+                return "center"
+
+            # 숫자형 데이터
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                return "right"
+
+            # 쉼표와 퍼센트가 포함된 숫자 문자열
+            text = str(value).strip().replace(",", "")
+            if text.endswith("%"):
+                text = text[:-1].strip()
+
+            try:
+                float(text)
+                return "right"
+            except (ValueError, TypeError):
+                return "center"
+
+        for row_idx, value in enumerate(result[col]):
+            alignment = align_value(value)
+            styles.append({
+                "selector": f"tbody tr:nth-child({row_idx + 1}) td:nth-child({col_idx + 1})",
+                "props": [("text-align", alignment)]
+            })
+
+    return result.style.set_table_styles(styles)
 
 
 # ─────────────────────────────────────────────
