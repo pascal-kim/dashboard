@@ -1617,17 +1617,15 @@ st.download_button(
     mime="text/csv"
 )
 
+
 # ─────────────────────────────────────────────
 # 한국연구재단 월별제출자료
-# 엑셀 병합 셀 및 서식 유지 표시
+# 병합 셀 유지 + 기존 대시보드 표 스타일 통일
 # ─────────────────────────────────────────────
 
-import html as html_lib
+import html
 import openpyxl
 from openpyxl.utils import get_column_letter
-from openpyxl.cell.cell import MergedCell
-from numbers import Number
-
 
 st.divider()
 st.header("한국연구재단 월별제출자료")
@@ -1642,384 +1640,126 @@ else:
     try:
         nrf_monthly_file.seek(0)
 
-        # 수식의 계산 결과를 읽고 셀 서식은 원본에서 가져옴
-        wb_values = openpyxl.load_workbook(
+        wb = openpyxl.load_workbook(
             nrf_monthly_file,
             data_only=True
         )
 
-        nrf_monthly_file.seek(0)
+        ws = wb[wb.sheetnames[0]]
 
-        wb_styles = openpyxl.load_workbook(
-            nrf_monthly_file,
-            data_only=False
-        )
-
-        ws = wb_values[wb_values.sheetnames[0]]
-        ws_style = wb_styles[wb_styles.sheetnames[0]]
-
-        # 엑셀 색상값을 HTML 색상으로 변환
-        def nrf_get_color(color, default=None):
-            if color is None:
-                return default
-
-            try:
-                if color.type == "rgb" and color.rgb:
-                    rgb = str(color.rgb)
-
-                    if len(rgb) == 8:
-                        rgb = rgb[2:]
-
-                    if len(rgb) == 6:
-                        return f"#{rgb}"
-
-                elif color.type == "indexed" and color.indexed is not None:
-                    indexed_colors = {
-                        0: "#000000",
-                        1: "#FFFFFF",
-                        2: "#FF0000",
-                        3: "#00FF00",
-                        4: "#0000FF",
-                        5: "#FFFF00",
-                        6: "#FF00FF",
-                        7: "#00FFFF",
-                    }
-
-                    return indexed_colors.get(color.indexed, default)
-
-            except Exception:
-                pass
-
-            return default
-
-        # 엑셀 테두리를 CSS로 변환
-        def nrf_border_style(side):
-            if side is None or side.style is None:
-                return "1px solid #D0D0D0"
-
-            border_styles = {
-                "hair": "1px solid",
-                "thin": "1px solid",
-                "medium": "2px solid",
-                "thick": "3px solid",
-                "double": "3px double",
-                "dashed": "1px dashed",
-                "dotted": "1px dotted",
-                "dashDot": "1px dashed",
-                "dashDotDot": "1px dashed",
-                "mediumDashed": "2px dashed",
-                "mediumDashDot": "2px dashed",
-                "mediumDashDotDot": "2px dashed",
-                "slantDashDot": "1px dashed",
-            }
-
-            line = border_styles.get(side.style, "1px solid")
-            color = nrf_get_color(side.color, "#808080")
-
-            return f"{line} {color}"
-
-        # 셀의 배경색, 글꼴, 정렬, 테두리 등을 CSS로 변환
-        def nrf_cell_css(cell):
-            css = []
-
-            # 배경색
-            if cell.fill and cell.fill.fill_type:
-                bg = nrf_get_color(
-                    cell.fill.fgColor,
-                    None
-                )
-
-                if bg:
-                    css.append(f"background-color:{bg}")
-
-            # 글꼴
-            if cell.font:
-                if cell.font.bold:
-                    css.append("font-weight:bold")
-
-                if cell.font.italic:
-                    css.append("font-style:italic")
-
-                if cell.font.color:
-                    font_color = nrf_get_color(
-                        cell.font.color,
-                        None
-                    )
-
-                    if font_color:
-                        css.append(f"color:{font_color}")
-
-                if cell.font.sz:
-                    css.append(f"font-size:{cell.font.sz}pt")
-
-            # 정렬
-            if cell.alignment:
-                horizontal = cell.alignment.horizontal
-                vertical = cell.alignment.vertical
-
-                if horizontal == "center":
-                    css.append("text-align:center")
-                elif horizontal == "right":
-                    css.append("text-align:right")
-                elif horizontal == "left":
-                    css.append("text-align:left")
-
-                if vertical == "center":
-                    css.append("vertical-align:middle")
-                elif vertical == "top":
-                    css.append("vertical-align:top")
-                elif vertical == "bottom":
-                    css.append("vertical-align:bottom")
-                else:
-                    css.append("vertical-align:middle")
-
-                if cell.alignment.wrap_text:
-                    css.append("white-space:pre-wrap")
-                    css.append("overflow-wrap:anywhere")
-                else:
-                    css.append("white-space:normal")
-
-                if cell.alignment.text_rotation:
-                    # 회전 글자는 원래 모양을 완전히 재현하기 어려움
-                    css.append("word-break:keep-all")
-
-            # 셀 테두리
-            if cell.border:
-                css.append(
-                    f"border-top:{nrf_border_style(cell.border.top)}"
-                )
-                css.append(
-                    f"border-bottom:{nrf_border_style(cell.border.bottom)}"
-                )
-                css.append(
-                    f"border-left:{nrf_border_style(cell.border.left)}"
-                )
-                css.append(
-                    f"border-right:{nrf_border_style(cell.border.right)}"
-                )
-
-            css.append("padding:6px 8px")
-
-            return ";".join(css)
-
-        # 셀 값 표시
-        def nrf_format_value(value, cell):
-            if value is None:
-                return ""
-
-            if isinstance(value, bool):
-                return "TRUE" if value else "FALSE"
-
-            if isinstance(value, Number):
-                if isinstance(value, float) and value.is_integer():
-                    value = int(value)
-
-                number_format = cell.number_format or "General"
-
-                # 엑셀에서 천 단위 구분을 사용하는 숫자
-                if isinstance(value, (int, float)):
-                    if "%" in number_format:
-                        decimals = 0
-                        if "." in number_format:
-                            decimals = len(
-                                number_format.split(".")[-1]
-                                .split(";")[0]
-                                .replace("%", "")
-                                .replace(",", "")
-                            )
-
-                        return f"{value:.{decimals}%}"
-
-                    if float(value).is_integer():
-                        return f"{value:,.0f}"
-
-                    return f"{value:,.2f}".rstrip("0").rstrip(".")
-
-            return str(value)
-
-        # 병합 셀 위치 기록
+        # 병합 셀의 시작 위치와 범위 기록
         merged_map = {}
         merged_anchors = {}
 
-        for merged_range in ws_style.merged_cells.ranges:
-            min_row = merged_range.min_row
-            max_row = merged_range.max_row
-            min_col = merged_range.min_col
-            max_col = merged_range.max_col
+        for merged_range in ws.merged_cells.ranges:
+            r1 = merged_range.min_row
+            r2 = merged_range.max_row
+            c1 = merged_range.min_col
+            c2 = merged_range.max_col
 
-            anchor = (min_row, min_col)
-
-            merged_anchors[anchor] = {
-                "rowspan": max_row - min_row + 1,
-                "colspan": max_col - min_col + 1,
+            merged_anchors[(r1, c1)] = {
+                "rowspan": r2 - r1 + 1,
+                "colspan": c2 - c1 + 1,
             }
 
-            for row_idx in range(min_row, max_row + 1):
-                for col_idx in range(min_col, max_col + 1):
-                    merged_map[(row_idx, col_idx)] = anchor
+            for r in range(r1, r2 + 1):
+                for c in range(c1, c2 + 1):
+                    merged_map[(r, c)] = (r1, c1)
 
-        # 엑셀의 실제 행·열 크기 반영
-        col_widths = []
+        # 기존 대시보드 표와 유사한 단순 스타일
+        table_style = """
+            border-collapse: collapse;
+            width: 100%;
+            table-layout: auto;
+            font-family: inherit;
+            font-size: 14px;
+            color: inherit;
+        """
 
-        for col_idx in range(1, ws.max_column + 1):
-            col_letter = get_column_letter(col_idx)
-            col_dim = ws_style.column_dimensions[col_letter]
+        cell_style = """
+            border: 1px solid #DDDDDD;
+            padding: 8px 10px;
+            text-align: center;
+            vertical-align: middle;
+            overflow-wrap: anywhere;
+        """
 
-            excel_width = col_dim.width or 10
+        header_style = """
+            border: 1px solid #DDDDDD;
+            padding: 8px 10px;
+            text-align: center;
+            vertical-align: middle;
+            font-weight: 600;
+            background-color: #F0F2F6;
+            color: #262730;
+            overflow-wrap: anywhere;
+        """
 
-            # 엑셀 열 너비를 화면 픽셀로 환산
-            pixel_width = max(45, int(excel_width * 7 + 5))
-            col_widths.append(pixel_width)
+        html_parts = [
+            '<div style="width:100%; overflow-x:auto;">',
+            f'<table style="{table_style}">',
+            "<tbody>"
+        ]
 
-        # HTML 표 생성
-        html_parts = []
+        # 원본 시트의 모든 행과 열 출력
+        for r in range(1, ws.max_row + 1):
+            html_parts.append("<tr>")
 
-        html_parts.append("""
-        <div style="
-            width:100%;
-            overflow-x:auto;
-            overflow-y:auto;
-            border:1px solid #D0D0D0;
-            background:#FFFFFF;
-        ">
-        <table style="
-            border-collapse:collapse;
-            table-layout:fixed;
-            width:max-content;
-            min-width:100%;
-            font-family:Arial,'Malgun Gothic',sans-serif;
-            font-size:12px;
-            color:#222222;
-        ">
-        <colgroup>
-        """)
+            for c in range(1, ws.max_column + 1):
 
-        for width in col_widths:
-            html_parts.append(
-                f'<col style="width:{width}px;min-width:{width}px;">'
-            )
+                anchor = merged_map.get((r, c))
 
-        html_parts.append("</colgroup><tbody>")
-
-        for row_idx in range(1, ws.max_row + 1):
-
-            row_dim = ws_style.row_dimensions[row_idx]
-            row_height = row_dim.height
-
-            if row_height:
-                row_height_px = int(row_height * 1.333)
-                html_parts.append(
-                    f'<tr style="height:{row_height_px}px;">'
-                )
-            else:
-                html_parts.append("<tr>")
-
-            for col_idx in range(1, ws.max_column + 1):
-
-                # 병합 범위에 포함된 셀은 좌측 상단 셀만 출력
-                anchor = merged_map.get((row_idx, col_idx))
-
-                if anchor is not None and anchor != (row_idx, col_idx):
+                # 병합 셀에 속한 시작 셀이 아니면 건너뜀
+                if anchor is not None and anchor != (r, c):
                     continue
 
-                cell = ws.cell(row_idx, col_idx)
-                style_cell = ws_style.cell(row_idx, col_idx)
+                value = ws.cell(r, c).value
 
-                # 병합 범위의 행·열 개수
+                if value is None:
+                    text = ""
+                else:
+                    text = html.escape(str(value)).replace("\n", "<br>")
+
+                # 병합 범위 적용
                 merge_attrs = ""
 
-                if (row_idx, col_idx) in merged_anchors:
-                    merge_info = merged_anchors[(row_idx, col_idx)]
+                if (r, c) in merged_anchors:
+                    info = merged_anchors[(r, c)]
 
-                    if merge_info["rowspan"] > 1:
-                        merge_attrs += (
-                            f' rowspan="{merge_info["rowspan"]}"'
-                        )
+                    if info["rowspan"] > 1:
+                        merge_attrs += f' rowspan="{info["rowspan"]}"'
 
-                    if merge_info["colspan"] > 1:
-                        merge_attrs += (
-                            f' colspan="{merge_info["colspan"]}"'
-                        )
+                    if info["colspan"] > 1:
+                        merge_attrs += f' colspan="{info["colspan"]}"'
 
-                # 셀 내용
-                value = nrf_format_value(
-                    cell.value,
-                    style_cell
-                )
-
-                escaped_value = html_lib.escape(
-                    value
-                ).replace("\n", "<br>")
-
-                # 병합 셀의 외곽 테두리 보완
-                css = nrf_cell_css(style_cell)
-
-                if (row_idx, col_idx) in merged_anchors:
-                    merge_info = merged_anchors[(row_idx, col_idx)]
-
-                    end_row = (
-                        row_idx + merge_info["rowspan"] - 1
-                    )
-                    end_col = (
-                        col_idx + merge_info["colspan"] - 1
-                    )
-
-                    bottom_cell = ws_style.cell(
-                        end_row,
-                        col_idx
-                    )
-                    right_cell = ws_style.cell(
-                        row_idx,
-                        end_col
-                    )
-                    corner_cell = ws_style.cell(
-                        end_row,
-                        end_col
-                    )
-
-                    css += (
-                        f";border-bottom:"
-                        f"{nrf_border_style(bottom_cell.border.bottom)}"
-                    )
-
-                    css += (
-                        f";border-right:"
-                        f"{nrf_border_style(right_cell.border.right)}"
-                    )
-
-                    if merge_info["rowspan"] > 1:
-                        css += (
-                            f";border-top:"
-                            f"{nrf_border_style(style_cell.border.top)}"
-                        )
-
-                    if merge_info["colspan"] > 1:
-                        css += (
-                            f";border-left:"
-                            f"{nrf_border_style(style_cell.border.left)}"
-                        )
+                # 상단 제목 행은 헤더 스타일, 나머지는 일반 표 스타일
+                if r <= 5:
+                    style = header_style
+                else:
+                    style = cell_style
 
                 html_parts.append(
-                    f'<td{merge_attrs} style="{css}">'
-                    f'{escaped_value}</td>'
+                    f'<td{merge_attrs} style="{style}">{text}</td>'
                 )
 
             html_parts.append("</tr>")
 
-        html_parts.append("</tbody></table></div>")
+        html_parts.extend([
+            "</tbody>",
+            "</table>",
+            "</div>"
+        ])
 
-        # 엑셀 형태로 출력
         st.markdown(
             "".join(html_parts),
             unsafe_allow_html=True
         )
 
         st.caption(
-            f"원본 파일: {nrf_monthly_file.name} "
-            "| 엑셀 병합 셀 및 주요 서식을 반영해 표시합니다."
+            f"원본 파일: {nrf_monthly_file.name}"
+            " | 병합 셀 유지 · 기존 대시보드 표 스타일 적용"
         )
 
-        # 원본 파일 다운로드
         nrf_monthly_file.seek(0)
 
         st.download_button(
@@ -2034,7 +1774,5 @@ else:
         )
 
     except Exception as e:
-        st.error(
-            "한국연구재단 월별제출자료 표시 중 오류가 발생했습니다."
-        )
+        st.error("월별제출자료를 표시하는 중 오류가 발생했습니다.")
         st.exception(e)
