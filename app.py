@@ -1455,7 +1455,7 @@ else:
 
 
 # ─────────────────────────────────────────────
-# 4. 영역별 예산 대비 집행 그래프
+# 4. 영역별 예산 대비 집행 그래프 + 표
 # ─────────────────────────────────────────────
 
 st.subheader("영역별 예산 대비 집행")
@@ -1466,6 +1466,8 @@ area_summary = (
         as_index=False
     )[["예산액", "누적집행액", "잔액"]]
     .sum()
+    .sort_values("예산액", ascending=False)
+    .reset_index(drop=True)
 )
 
 area_summary["집행률(%)"] = area_summary.apply(
@@ -1476,74 +1478,126 @@ area_summary["집행률(%)"] = area_summary.apply(
     axis=1
 )
 
-area_display = area_summary.copy()
-area_total_budget = area_summary["예산액"].sum()
-area_total_execution = area_summary["누적집행액"].sum()
-area_total = pd.DataFrame([{
-    "영역구분": "합계",
-    "예산액": area_total_budget,
-    "누적집행액": area_total_execution,
-    "잔액": area_summary["잔액"].sum(),
-    "집행률(%)": area_total_execution / area_total_budget * 100 if area_total_budget else 0
-}])
-area_display = pd.concat([area_display, area_total], ignore_index=True)
-area_display = format_money_columns(
-    area_display,
-    ["예산액", "누적집행액", "잔액"]
-)
-area_display["집행률(%)"] = area_display["집행률(%)"].map(lambda x: f"{x:.1f}%")
+if not area_summary.empty:
 
-st.dataframe(
-    right_align_columns(
-        area_display,
-        ["예산액", "누적집행액", "잔액", "집행률(%)"]
-    ),
-    use_container_width=True,
-    hide_index=True
-)
+    # 표 데이터 및 합계 행
+    area_display = area_summary.copy()
 
-area_long = area_summary.melt(
-    id_vars="영역구분",
-    value_vars=["예산액", "누적집행액"],
-    var_name="구분",
-    value_name="금액"
-)
+    area_total_budget = area_summary["예산액"].sum()
+    area_total_execution = area_summary["누적집행액"].sum()
 
-fig = px.bar(
-    area_long,
-    x="영역구분",
-    y="금액",
-    color="구분",
-    barmode="group",
-    title="영역별 예산·누적집행 비교",
-    color_discrete_map={
-        "예산액": COLOR_BUDGET_SUB,
-        "누적집행액": COLOR_EXECUTION_SUB
-    }
-)
+    area_total = pd.DataFrame([{
+        "영역구분": "합계",
+        "예산액": area_total_budget,
+        "누적집행액": area_total_execution,
+        "잔액": area_summary["잔액"].sum(),
+        "집행률(%)": (
+            area_total_execution / area_total_budget * 100
+            if area_total_budget else 0
+        )
+    }])
 
-fig.update_traces(
-    hovertemplate=(
-        "%{x}<br>"
-        "%{fullData.name}: %{y:,.0f}원"
-        "<extra></extra>"
+    area_display = pd.concat(
+        [area_display, area_total],
+        ignore_index=True
     )
-)
 
-fig.update_yaxes(tickformat=",.0f")
+    area_display = format_money_columns(
+        area_display,
+        ["예산액", "누적집행액", "잔액"]
+    )
 
-fig.update_layout(
-    xaxis_title="사업 영역",
-    yaxis_title="금액(원)",
-    legend_title_text="구분",
-    title_font_color=COLOR_TITLE,
-    plot_bgcolor="white",
-    paper_bgcolor="white"
-)
+    area_display["집행률(%)"] = area_display[
+        "집행률(%)"
+    ].map(lambda x: f"{x:.1f}%")
 
-st.plotly_chart(fig, use_container_width=True)
+    # 왼쪽 그래프 / 오른쪽 표
+    chart_col, table_col = st.columns([1, 1.3], gap="medium")
 
+    with chart_col:
+        area_long = area_summary.melt(
+            id_vars="영역구분",
+            value_vars=["예산액", "누적집행액"],
+            var_name="구분",
+            value_name="금액"
+        )
 
+        fig = px.bar(
+            area_long,
+            x="금액",
+            y="영역구분",
+            orientation="h",
+            color="구분",
+            barmode="group",
+            title="영역별 예산·누적집행 비교",
+            color_discrete_map={
+                "예산액": COLOR_BUDGET_SUB,
+                "누적집행액": COLOR_EXECUTION_SUB
+            },
+            category_orders={
+                "영역구분": area_summary["영역구분"].tolist(),
+                "구분": ["예산액", "누적집행액"]
+            }
+        )
+
+        fig.update_traces(
+            hovertemplate=(
+                "%{y}<br>"
+                "%{fullData.name}: %{x:,.0f}원"
+                "<extra></extra>"
+            )
+        )
+
+        fig.update_xaxes(
+            title_text="금액(원)",
+            tickformat=",.0f",
+            rangemode="tozero"
+        )
+
+        fig.update_yaxes(
+            title_text=None,
+            categoryorder="array",
+            categoryarray=area_summary["영역구분"].tolist(),
+            autorange="reversed",
+            automargin=True
+        )
+
+        fig.update_layout(
+            height=max(300, 75 * len(area_summary) + 80),
+            margin=dict(l=5, r=20, t=55, b=35),
+            bargap=0.25,
+            bargroupgap=0.08,
+            legend_title_text="구분",
+            title_font_color=COLOR_TITLE,
+            plot_bgcolor="white",
+            paper_bgcolor="white"
+        )
+
+        st.plotly_chart(fig, use_container_width=True)
+
+    with table_col:
+        st.markdown(
+            "<div style='font-size:16px; font-weight:600; "
+            "color:#111D37; line-height:1.2; margin:0 0 0.8rem 0;'>"
+            "영역별 예산 및 집행 현황</div>",
+            unsafe_allow_html=True
+        )
+
+        st.dataframe(
+            right_align_columns(
+                area_display,
+                ["예산액", "누적집행액", "잔액", "집행률(%)"]
+            ),
+            use_container_width=True,
+            hide_index=True,
+            height=min(
+                max(150, 35 * (len(area_display) + 1) + 3),
+                20000
+            )
+        )
+
+else:
+    st.info("표시할 영역별 예산 자료가 없습니다.")
 # ─────────────────────────────────────────────
 # 5. 예산 세부 집계
 # ─────────────────────────────────────────────
