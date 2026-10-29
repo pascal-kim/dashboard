@@ -9,7 +9,76 @@ st.set_page_config(
     page_icon="📊",
     layout="wide"
 )
+  /* 화면 전용 요소 숨기기 */
+    [data-testid="stSidebar"],
+    [data-testid="stToolbar"],
+    [data-testid="stHeader"],
+    [data-testid="stDecoration"],
+    [data-testid="stStatusWidget"],
+    .stDownloadButton,
+    .stButton,
+    button,
+    input {
+        display: none !important;
+    }
 
+    /* 본문 전체 너비 사용 */
+    .stApp,
+    [data-testid="stAppViewContainer"],
+    [data-testid="stMain"],
+    [data-testid="stMainBlockContainer"] {
+        width: 100% !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: white !important;
+        color: black !important;
+    }
+
+    /* 그림자 및 장식 제거 */
+    [data-testid="stMetric"],
+    [data-testid="stVerticalBlockBorderWrapper"] {
+        box-shadow: none !important;
+        background: white !important;
+    }
+
+    /* 그래프와 표가 페이지를 넘치지 않게 설정 */
+    img,
+    svg,
+    canvas,
+    [data-testid="stDataFrame"],
+    [data-testid="stTable"] {
+        max-width: 100% !important;
+        break-inside: avoid;
+    }
+
+    /* 제목과 표 제목의 페이지 분리 방지 */
+    h1, h2, h3 {
+        color: black !important;
+        break-after: avoid;
+    }
+
+    table {
+        width: 100% !important;
+        border-collapse: collapse !important;
+        font-size: 9pt !important;
+    }
+
+    th, td {
+        border: 1px solid #999 !important;
+        padding: 4px !important;
+        color: black !important;
+        background: white !important;
+    }
+
+    /* 링크 주소 등 불필요한 장식 제거 */
+    a {
+        text-decoration: none !important;
+        color: black !important;
+    }
+}
+</style>
+""", unsafe_allow_html=True)
 # ─────────────────────────────────────────────
 # 색상 테마
 # ─────────────────────────────────────────────
