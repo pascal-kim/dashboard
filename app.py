@@ -1,95 +1,128 @@
-import streamlit as st
-import pandas as pd
-import plotly.express as px
-import re
-from datetime import datetime
-
-st.set_page_config(
-    page_title="Innovation_Pascal@",
-    page_icon="📊",
-    layout="wide"
+    ),
+    use_container_width=True,
+    hide_index=True
 )
 
+
 # ─────────────────────────────────────────────
-# 색상 테마
+# 6. 집행내역 상세
 # ─────────────────────────────────────────────
 
-COLOR_TITLE = "#111D37"
-COLOR_BUDGET = "#223D72"
-COLOR_BUDGET_SUB = "#345CAD"
-COLOR_EXECUTION = "#5F84CF"
-COLOR_EXECUTION_SUB = "#9AB1E0"
-COLOR_COMPARE = "#7186A8"
-COLOR_EXTRA = "#6FA6B8"
-COLOR_BACKGROUND = "#D0D9E8"
+st.subheader("집행내역 상세")
 
-BLUE_PALETTE = [
-    COLOR_BUDGET,
-    COLOR_BUDGET_SUB,
-    COLOR_EXECUTION,
-    COLOR_EXECUTION_SUB,
-    COLOR_COMPARE,
-    COLOR_EXTRA,
-    COLOR_BACKGROUND,
+detail_cols = [
+    "date",
+    "dept",
+    "task",
+    "fund",
+    "nrf",
+    "account_code",
+    "amount",
+    "월"
 ]
 
-st.markdown(
-    f"""
-    <style>
-    h1, h2, h3 {{
-        color: {COLOR_TITLE};
-    }}
-
-    [data-testid="stMetric"] {{
-        background-color: {COLOR_BACKGROUND};
-        padding: 14px;
-        border-radius: 8px;
-    }}
-
-    [data-testid="stMetricLabel"] {{
-        color: {COLOR_TITLE};
-    }}
-
-    [data-testid="stMetricValue"] {{
-        color: {COLOR_TITLE};
-        font-weight: 700;
-    }}
-
-    [data-testid="stSidebar"] {{
-        border-right: 1px solid {COLOR_BACKGROUND};
-    }}
-
-    div[data-testid="stDataFrame"] {{
-        border: 1px solid {COLOR_BACKGROUND};
-        border-radius: 6px;
-    }}
-    </style>
-    """,
-    unsafe_allow_html=True
+detail = (
+    ef[detail_cols]
+    .rename(
+        columns={
+            "date": "전기일",
+            "dept": "지출 부서",
+            "task": "과제번호",
+            "fund": "자금",
+            "nrf": "연구재단 비목",
+            "account_code": "계정과목",
+            "amount": "원본 금액",
+            "월": "집행월"
+        }
+    )
+    .sort_values("전기일", ascending=False)
+    .copy()
 )
 
-st.title("혁신지원사업 예산 대시보드")
-st.caption(
-    "예산 파일과 집행 파일을 함께 올리면 "
-    "월별 집행액·예산 대비 집행률을 확인할 수 있습니다."
+detail = format_money_columns(
+    detail,
+    ["원본 금액"]
+)
+
+detail["전기일"] = detail["전기일"].dt.strftime("%Y-%m-%d")
+
+st.dataframe(
+    right_align_columns(
+        detail,
+        ["원본 금액"]
+    ),
+    use_container_width=True,
+    hide_index=True
 )
 
 
 # ─────────────────────────────────────────────
-# 공통 함수
+# 7. 집행내역 검증
 # ─────────────────────────────────────────────
 
-def norm(x):
-    return re.sub(
-        r"\s+",
-        "",
-        str(x).replace("\n", "")
-    ).strip().lower()
+matched_keys = exp_group.merge(
+    budget_group[key],
+    on=key,
+    how="inner"
+)
+
+st.subheader("집행내역 검증")
+
+c1, c2, c3 = st.columns(3)
+
+c1.metric(
+    "집행 원본 행 수",
+    f"{len(exp):,}"
+)
+
+c2.metric(
+    "예산과 연결된 집행 조합",
+    f"{len(matched_keys):,}"
+)
+
+c3.metric(
+    "예산과 미연결 집행 조합",
+    f"{len(exp_group) - len(matched_keys):,}"
+)
+
+with st.expander("미연결 집행 내역 확인"):
+    unmatched = exp_group.merge(
+        budget_group[key],
+        on=key,
+        how="left",
+        indicator=True
+    )
+
+    unmatched = unmatched[
+        unmatched["_merge"] == "left_only"
+    ].drop(columns="_merge")
+
+    unmatched_display = format_money_columns(
+        unmatched,
+        ["누적집행액"]
+    )
+
+    st.dataframe(
+        right_align_columns(
+            unmatched_display,
+            ["누적집행액"]
+        ),
+        use_container_width=True,
+        hide_index=True
+    )
+
+    st.caption(
+        "미연결은 부서명·과제번호·자금코드·연구재단비목·"
+        "계정코드가 예산 파일과 정확히 일치하지 않는 경우입니다. "
+        "예산과 연결되지 않은 집행액도 월별 집행 그래프에는 포함됩니다."
+    )
 
 
-def find_col(columns, candidates):
-    cmap = {norm(c): c for c in columns}
+# ─────────────────────────────────────────────
+# 8. 예산 대비 집행 집계 CSV 다운로드
+# ─────────────────────────────────────────────
 
-    for c in candidates:
-        if norm(c) in cmap:
-            return cmap[norm(c)]
+csv = summary[show_cols].to_csv(
+    index=False
+).encode("utf-8-sig")
+
