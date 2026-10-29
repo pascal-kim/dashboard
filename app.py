@@ -9,76 +9,198 @@ st.set_page_config(
     page_icon="📊",
     layout="wide"
 )
-  /* 화면 전용 요소 숨기기 */
-    [data-testid="stSidebar"],
-    [data-testid="stToolbar"],
-    [data-testid="stHeader"],
-    [data-testid="stDecoration"],
-    [data-testid="stStatusWidget"],
-    .stDownloadButton,
-    .stButton,
-    button,
-    input {
-        display: none !important;
-    }
+  
+ ─────────────────────────────────────────────
+# 인쇄 전용 보고서 스타일 (기존 기능 변경 없음)
+# ─────────────────────────────────────────────
+st.markdown(
+    """
+    <style>
+    @media print {
 
-    /* 본문 전체 너비 사용 */
-    .stApp,
-    [data-testid="stAppViewContainer"],
-    [data-testid="stMain"],
-    [data-testid="stMainBlockContainer"] {
-        width: 100% !important;
-        max-width: 100% !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        background: white !important;
-        color: black !important;
-    }
+        /* A4 가로 방향 및 여백 */
+        @page {
+            size: A4 landscape;
+            margin: 10mm;
+        }
 
-    /* 그림자 및 장식 제거 */
-    [data-testid="stMetric"],
-    [data-testid="stVerticalBlockBorderWrapper"] {
-        box-shadow: none !important;
-        background: white !important;
-    }
+        /* 기본 페이지 설정 */
+        html, body, .stApp {
+            width: 100% !important;
+            min-width: 0 !important;
+            background: #ffffff !important;
+            color: #000000 !important;
+            font-size: 10pt !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
 
-    /* 그래프와 표가 페이지를 넘치지 않게 설정 */
-    img,
-    svg,
-    canvas,
-    [data-testid="stDataFrame"],
-    [data-testid="stTable"] {
-        max-width: 100% !important;
-        break-inside: avoid;
-    }
+        /* 인쇄 시 불필요한 화면 요소 숨기기 */
+        [data-testid="stSidebar"],
+        [data-testid="stHeader"],
+        [data-testid="stToolbar"],
+        [data-testid="stDecoration"],
+        [data-testid="stStatusWidget"],
+        [data-testid="stFileUploader"],
+        [data-testid="stButton"],
+        [data-testid="stDownloadButton"],
+        [data-testid="stForm"],
+        footer,
+        header {
+            display: none !important;
+        }
 
-    /* 제목과 표 제목의 페이지 분리 방지 */
-    h1, h2, h3 {
-        color: black !important;
-        break-after: avoid;
-    }
+        /* 메인 영역 전체 너비 사용 */
+        [data-testid="stAppViewContainer"],
+        [data-testid="stMain"],
+        [data-testid="stMainBlockContainer"],
+        .block-container {
+            width: 100% !important;
+            max-width: 100% !important;
+            min-width: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            overflow: visible !important;
+        }
 
-    table {
-        width: 100% !important;
-        border-collapse: collapse !important;
-        font-size: 9pt !important;
-    }
+        /* 제목과 본문 */
+        h1 {
+            font-size: 22pt !important;
+            color: #000000 !important;
+            border-bottom: 2px solid #333333;
+            padding-bottom: 8px !important;
+            margin-bottom: 12px !important;
+        }
 
-    th, td {
-        border: 1px solid #999 !important;
-        padding: 4px !important;
-        color: black !important;
-        background: white !important;
-    }
+        h2 {
+            font-size: 15pt !important;
+            color: #222222 !important;
+            border-bottom: 1px solid #999999;
+            padding-bottom: 4px !important;
+            margin-top: 18px !important;
+        }
 
-    /* 링크 주소 등 불필요한 장식 제거 */
-    a {
-        text-decoration: none !important;
-        color: black !important;
+        h3 {
+            font-size: 12pt !important;
+            color: #333333 !important;
+            margin-top: 12px !important;
+        }
+
+        p, label, span {
+            color: #222222;
+        }
+
+        /* KPI 카드: 흑백 인쇄 */
+        [data-testid="stMetric"] {
+            background: #f2f2f2 !important;
+            border: 1px solid #bdbdbd !important;
+            border-radius: 0 !important;
+            padding: 10px !important;
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+        }
+
+        [data-testid="stMetricLabel"] {
+            color: #333333 !important;
+            font-size: 9pt !important;
+        }
+
+        [data-testid="stMetricValue"] {
+            color: #000000 !important;
+            font-size: 17pt !important;
+            font-weight: 700 !important;
+        }
+
+        /* 차트: 컬러를 흑백으로 변환하고 페이지 분할 방지 */
+        [data-testid="stPlotlyChart"],
+        [data-testid="stVegaLiteChart"],
+        [data-testid="stArrowVegaLiteChart"],
+        .element-container:has([data-testid="stPlotlyChart"]) {
+            width: 100% !important;
+            max-width: 100% !important;
+            filter: grayscale(100%) !important;
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+            overflow: visible !important;
+        }
+
+        /* 차트 조작 도구 숨기기 */
+        .modebar,
+        .modebar-container {
+            display: none !important;
+        }
+
+        /* 데이터 표 */
+        [data-testid="stDataFrame"],
+        [data-testid="stTable"] {
+            width: 100% !important;
+            max-width: 100% !important;
+            overflow: visible !important;
+            break-inside: auto !important;
+            page-break-inside: auto !important;
+            border: 1px solid #999999 !important;
+        }
+
+        [data-testid="stDataFrame"] iframe {
+            width: 100% !important;
+            max-width: 100% !important;
+        }
+
+        table {
+            width: 100% !important;
+            border-collapse: collapse !important;
+            font-size: 8pt !important;
+        }
+
+        th, td {
+            color: #000000 !important;
+            background: #ffffff !important;
+            border: 1px solid #999999 !important;
+            padding: 4px 6px !important;
+            white-space: normal !important;
+            overflow-wrap: anywhere !important;
+        }
+
+        th {
+            background: #e6e6e6 !important;
+            font-weight: 700 !important;
+        }
+
+        /* 구분선 */
+        hr {
+            border: none !important;
+            border-top: 1px solid #999999 !important;
+            margin: 12px 0 !important;
+        }
+
+        /* 빈 공간과 불필요한 여백 최소화 */
+        [data-testid="stVerticalBlock"] {
+            gap: 0.6rem !important;
+        }
+
+        /* 콘텐츠가 페이지 경계에서 잘리는 현상 최소화 */
+        img, svg, canvas {
+            max-width: 100% !important;
+        }
+
+        /* 보고서 요소가 중간에 분리되지 않도록 설정 */
+        .print-keep-together {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+        }
+
+        /* 링크 주소 출력 방지 */
+        a[href]::after {
+            content: none !important;
+        }
     }
-}
-</style>
-""", unsafe_allow_html=True)
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+
+
 # ─────────────────────────────────────────────
 # 색상 테마
 # ─────────────────────────────────────────────
