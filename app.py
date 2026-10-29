@@ -610,7 +610,7 @@ exp_group = exp.groupby(
 joined = budget_group.merge(
     exp_group,
     on=key,
-    how="left"
+    how="right"
 )
 
 joined["누적집행액"] = joined["누적집행액"].fillna(0)
@@ -720,7 +720,7 @@ eagg = ef.groupby(
 summary = bagg.merge(
     eagg,
     on=key,
-    how="left"
+    how="right"
 )
 
 summary["누적집행액"] = summary["누적집행액"].fillna(0)
@@ -1192,12 +1192,12 @@ with st.expander("미연결 집행 내역 확인"):
     unmatched = exp_group.merge(
         budget_group[key],
         on=key,
-        how="left",
+        how="right",
         indicator=True
     )
 
     unmatched = unmatched[
-        unmatched["_merge"] == "left_only"
+        unmatched["_merge"] == "right_only"
     ].drop(columns="_merge")
 
     unmatched_display = format_money_columns(
