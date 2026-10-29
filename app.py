@@ -1028,8 +1028,9 @@ st.caption(
 )
 
 
+
 # ─────────────────────────────────────────────
-# 1. 월별 집행액 그래프
+# 1. 월별 집행액 그래프 + 월별 집행 현황 표
 # ─────────────────────────────────────────────
 
 st.subheader("월별 집행액")
@@ -1038,54 +1039,25 @@ monthly = (
     ef.groupby("월", as_index=False)["집행액"]
     .sum()
     .sort_values("월")
+    .reset_index(drop=True)
 )
 
 if not monthly.empty:
-    fig = px.bar(
-        monthly,
-        x="월",
-        y="집행액",
-        text="집행액",
-        title="월별 순집행액",
-        color_discrete_sequence=[COLOR_EXECUTION]
-    )
 
-    fig.update_traces(
-        texttemplate="%{text:,.0f}원",
-        textposition="outside",
-        cliponaxis=False,
-        hovertemplate=(
-            "%{x}<br>"
-            "집행액: %{y:,.0f}원"
-            "<extra></extra>"
-        )
-    )
-
-    fig.update_yaxes(tickformat=",.0f")
-
-    fig.update_layout(
-        xaxis_title="월",
-        yaxis_title="집행액(원)",
-        showlegend=False,
-        title_font_color=COLOR_TITLE,
-        plot_bgcolor="white",
-        paper_bgcolor="white"
-    )
-
-    st.plotly_chart(fig, use_container_width=True)
-
+    # 누적집행액 계산
     monthly["누적집행액"] = monthly["집행액"].cumsum()
 
+    # 표 데이터 생성 및 합계 행 추가
     monthly_display = monthly.rename(
         columns={"월": "집행월"}
     ).copy()
 
-    # 표에만 합계 행 추가: 그래프에 사용하는 monthly 원본은 변경하지 않음
     monthly_total = pd.DataFrame([{
         "집행월": "합계",
         "집행액": monthly_display["집행액"].sum(),
         "누적집행액": monthly_display["누적집행액"].iloc[-1]
     }])
+
     monthly_display = pd.concat(
         [monthly_display, monthly_total],
         ignore_index=True
@@ -1096,20 +1068,79 @@ if not monthly.empty:
         ["집행액", "누적집행액"]
     )
 
-    st.dataframe(
-        right_align_columns(
-            monthly_display,
-            ["집행액", "누적집행액"]
-        ),
-        use_container_width=True,
-        hide_index=True
-    )
+    # 좌측 그래프 / 우측 표
+    chart_col, table_col = st.columns([1, 1.15], gap="medium")
+
+    with chart_col:
+        fig = px.bar(
+            monthly,
+            x="집행액",
+            y="월",
+            orientation="h",
+            text="집행액",
+            title="월별 순집행액",
+            color_discrete_sequence=[COLOR_EXECUTION]
+        )
+
+        fig.update_traces(
+            texttemplate="%{text:,.0f}원",
+            textposition="outside",
+            cliponaxis=False,
+            hovertemplate=(
+                "%{y}<br>"
+                "집행액: %{x:,.0f}원"
+                "<extra></extra>"
+            )
+        )
+
+        fig.update_xaxes(
+            title_text="집행액(원)",
+            tickformat=",.0f",
+            rangemode="tozero"
+        )
+
+        fig.update_yaxes(
+            title_text=None,
+            autorange="reversed",
+            automargin=True
+        )
+
+        fig.update_layout(
+            height=max(280, 55 * len(monthly) + 80),
+            margin=dict(l=5, r=35, t=55, b=35),
+            showlegend=False,
+            title_font_color=COLOR_TITLE,
+            plot_bgcolor="white",
+            paper_bgcolor="white"
+        )
+
+        st.plotly_chart(fig, use_container_width=True)
+
+    with table_col:
+        st.markdown(
+            "<div style='font-size:16px; font-weight:600; "
+            "color:#111D37; line-height:1.2; margin:0 0 0.8rem 0;'>"
+            "월별 집행 현황</div>",
+            unsafe_allow_html=True
+        )
+
+        st.dataframe(
+            right_align_columns(
+                monthly_display,
+                ["집행액", "누적집행액"]
+            ),
+            use_container_width=True,
+            hide_index=True,
+            height=min(
+                max(120, 35 * (len(monthly_display) + 1) + 3),
+                20000
+            )
+        )
 
 else:
     st.warning(
         "선택 조건에 해당하는 유효한 전기일/금액이 없습니다."
     )
-
 
 # ─────────────────────────────────────────────
 # 2. 비목별 예산 구성 원그래프
