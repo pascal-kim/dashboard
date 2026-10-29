@@ -1813,11 +1813,9 @@ else:
             else:
                 style = cell_style
 
-                html_parts.append(
-                    f'<td{merge_attrs} style="{style}">'
-                    f'{text}'
-                    f'</td>'
-                )
+            html_parts.append(
+                f'<td{merge_attrs} style="{style}">{text}</td>'
+            )
 
             html_parts.append("</tr>")
 
