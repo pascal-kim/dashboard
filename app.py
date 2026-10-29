@@ -1233,8 +1233,10 @@ else:
     st.info("표시할 비목별 예산이 없습니다.")
 
 
+
 # ─────────────────────────────────────────────
-# 3. 부서별 예산 대비 집행 그래프
+# 3. 부서별 예산 대비 집행
+# 가로 막대그래프(좌측) + 상세 표(우측)
 # ─────────────────────────────────────────────
 
 st.subheader("부서별 예산 대비 집행")
@@ -1246,85 +1248,172 @@ dept_summary = (
     )[["예산액", "누적집행액", "잔액"]]
     .sum()
     .sort_values("예산액", ascending=False)
+    .reset_index(drop=True)
 )
 
 dept_summary["집행률(%)"] = dept_summary.apply(
-    lambda r: r["누적집행액"] / r["예산액"] * 100 if r["예산액"] else 0,
+    lambda r: (
+        r["누적집행액"] / r["예산액"] * 100
+        if r["예산액"] else 0
+    ),
     axis=1
 )
 
 if not dept_summary.empty:
-    # 그래프는 예산액 상위 15개 부서만 표시
-    dept_chart = dept_summary.head(15).copy()
 
-    dept_long = dept_chart.melt(
-        id_vars="부서명",
-        value_vars=["예산액", "누적집행액"],
-        var_name="구분",
-        value_name="금액"
-    )
-
-    fig = px.bar(
-        dept_long,
-        x="부서명",
-        y="금액",
-        color="구분",
-        barmode="group",
-        title="부서별 예산·누적집행 비교 (예산액 상위 15개)",
-        color_discrete_map={
-            "예산액": COLOR_BUDGET,
-            "누적집행액": COLOR_EXECUTION
-        }
-    )
-
-    fig.update_traces(
-        hovertemplate=(
-            "%{x}<br>"
-            "%{fullData.name}: %{y:,.0f}원"
-            "<extra></extra>"
-        )
-    )
-
-    fig.update_yaxes(tickformat=",.0f")
-
-    fig.update_layout(
-        xaxis_title="부서",
-        yaxis_title="금액(원)",
-        xaxis_tickangle=-35,
-        legend_title_text="구분",
-        title_font_color=COLOR_TITLE,
-        plot_bgcolor="white",
-        paper_bgcolor="white"
-    )
-
-    st.plotly_chart(fig, use_container_width=True)
+    # ─────────────────────────────────────────
+    # 표 데이터 준비: 전체 부서 + 합계
+    # ─────────────────────────────────────────
 
     dept_display = dept_summary.copy()
+
     dept_total_budget = dept_summary["예산액"].sum()
     dept_total_execution = dept_summary["누적집행액"].sum()
+
     dept_total = pd.DataFrame([{
         "부서명": "합계",
         "예산액": dept_total_budget,
         "누적집행액": dept_total_execution,
         "잔액": dept_summary["잔액"].sum(),
-        "집행률(%)": dept_total_execution / dept_total_budget * 100 if dept_total_budget else 0
+        "집행률(%)": (
+            dept_total_execution / dept_total_budget * 100
+            if dept_total_budget else 0
+        )
     }])
-    dept_display = pd.concat([dept_display, dept_total], ignore_index=True)
+
+    dept_display = pd.concat(
+        [dept_display, dept_total],
+        ignore_index=True
+    )
+
     dept_display = format_money_columns(
         dept_display,
         ["예산액", "누적집행액", "잔액"]
     )
-    dept_display["집행률(%)"] = dept_display["집행률(%)"].map(lambda x: f"{x:.1f}%")
 
-    st.dataframe(
-        right_align_columns(
-            dept_display,
-            ["예산액", "누적집행액", "잔액", "집행률(%)"]
-        ),
-        use_container_width=True,
-        hide_index=True,
-        height=min(max(120, 35 * (len(dept_display) + 1) + 3), 20000)
+    dept_display["집행률(%)"] = (
+        dept_display["집행률(%)"]
+        .map(lambda x: f"{x:.1f}%")
     )
+
+    # ─────────────────────────────────────────
+    # 좌측 그래프 / 우측 표 배치
+    # 표에 필요한 공간을 고려해 우측 폭을 넓게 설정
+    # ─────────────────────────────────────────
+
+    chart_col, table_col = st.columns(
+        [1, 1.35],
+        gap="medium"
+    )
+
+    # 부서 수에 따라 그래프와 표 높이 조정
+    dept_count = len(dept_summary)
+
+    chart_height = max(
+        300,
+        35 * dept_count + 70
+    )
+
+    table_height = max(
+        180,
+        35 * (len(dept_display) + 1) + 3
+    )
+
+    # ─────────────────────────────────────────
+    # 좌측: 가로 막대그래프
+    # ─────────────────────────────────────────
+
+    with chart_col:
+
+        dept_long = dept_summary.melt(
+            id_vars="부서명",
+            value_vars=["예산액", "누적집행액"],
+            var_name="구분",
+            value_name="금액"
+        )
+
+        fig = px.bar(
+            dept_long,
+            x="금액",
+            y="부서명",
+            orientation="h",
+            color="구분",
+            barmode="group",
+            title="부서별 예산·집행 비교",
+            color_discrete_map={
+                "예산액": COLOR_BUDGET,
+                "누적집행액": COLOR_EXECUTION
+            },
+            category_orders={
+                "부서명": dept_summary["부서명"].tolist(),
+                "구분": ["예산액", "누적집행액"]
+            }
+        )
+
+        fig.update_traces(
+            hovertemplate=(
+                "%{y}<br>"
+                "%{fullData.name}: %{x:,.0f}원"
+                "<extra></extra>"
+            )
+        )
+
+        fig.update_xaxes(
+            title_text="금액(원)",
+            tickformat=",.0f",
+            rangemode="tozero"
+        )
+
+        # 예산액이 큰 부서를 위쪽에 표시
+        fig.update_yaxes(
+            title_text=None,
+            categoryorder="array",
+            categoryarray=dept_summary["부서명"].tolist(),
+            autorange="reversed",
+            automargin=True
+        )
+
+        fig.update_layout(
+            height=chart_height,
+            margin=dict(l=5, r=10, t=55, b=35),
+            bargap=0.22,
+            bargroupgap=0.08,
+            legend_title_text="구분",
+            title_font_color=COLOR_TITLE,
+            title_font_size=16,
+            plot_bgcolor="white",
+            paper_bgcolor="white"
+        )
+
+        st.plotly_chart(
+            fig,
+            use_container_width=True
+        )
+
+    # ─────────────────────────────────────────
+    # 우측: 부서별 상세 현황표
+    # ─────────────────────────────────────────
+
+    with table_col:
+
+        st.markdown(
+            "<div style='font-size:16px; font-weight:600; "
+            "color:#111D37; line-height:1.2; "
+            "margin:0 0 0.8rem 0;'>"
+            "부서별 예산 및 집행 현황"
+            "</div>",
+            unsafe_allow_html=True
+        )
+
+        st.dataframe(
+            right_align_columns(
+                dept_display,
+                ["예산액", "누적집행액", "잔액", "집행률(%)"]
+            ),
+            use_container_width=True,
+            hide_index=True,
+            height=table_height
+        )
 
 else:
     st.info("표시할 부서별 예산 자료가 없습니다.")
